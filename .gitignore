@@ -1,0 +1,8 @@
+/saves/*.sav
+/source/*.cpp
+/source/*.h
+/tests/
+/roms/*.gba
+ARM7TDMI_Datasheet.pdf
+gba_bios.bin
+gba_bios.sav

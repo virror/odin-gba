@@ -1,0 +1,24 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "CMake: build",
+			"command": "../Odin/odin.exe",
+			"args": [
+                "run",
+                "./source",
+				"-vet-unused-variables",
+                "-vet-shadowing",
+                "-vet-using-stmt",
+                "-strict-style",
+				"-o:speed"
+            ],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		}
+	]
+}
