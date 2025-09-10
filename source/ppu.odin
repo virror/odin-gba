@@ -237,8 +237,6 @@ ppu_draw_mode_5 :: proc(dispcnt: u16) {
 }
 
 ppu_draw_tiles :: proc(bg_index: u32) {
-    fmt.println("Tiles!")
-
     bgcnt: u16
     bghofs: u16
     bgvofs: u16

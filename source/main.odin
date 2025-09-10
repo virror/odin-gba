@@ -68,7 +68,7 @@ main :: proc() {
         false,
         &desired,
         &obtained,
-        false,
+        nil,
     )
     defer sdl.CloseAudioDevice(device)
 
@@ -93,11 +93,10 @@ main :: proc() {
         return
     }
 
+    bus_load_rom(ROM_PATH)
     when !START_BIOS {
         cpu_init_no_bios()
     }
-
-    bus_load_rom(ROM_PATH)
 
     cycles_since_last_sample: u32
     accumulated_time := 0.0

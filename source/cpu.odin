@@ -201,6 +201,7 @@ cpu_init_no_bios :: proc() {
     regs[Regs.SP][0] = 0x03007F00
     regs[Regs.LR][0] = 0x08000000
     PC = 0x08000000
+    cpu_refetch32()
 }
 
 cpu_exec_irq :: proc() {
@@ -1363,7 +1364,7 @@ cpu_alu :: proc(opcode: u16) -> u32 {
 cpu_ld_pc :: proc(opcode: u16) -> u32 {
     Rd := Regs((opcode & 0x0700) >> 8)
     imm := u32((opcode & 0x00FF) << 2)
-    pc := utils_bit_clear32(PC, 1)
+    pc := (PC - 2) & 0xFFFFFFFC
     cpu_reg_set(Rd, bus_read32(pc + imm))
     return 3
 }
