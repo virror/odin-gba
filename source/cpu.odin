@@ -63,9 +63,9 @@ cpu_init :: proc() {
 
 cpu_refetch16 :: proc() {
     PC += 2
-    pipeline[0] = u32(bus_read16(PC))
+    pipeline[0] = u32(bus_read16(PC & 0xFFFFFFFE))
     PC += 2
-    pipeline[1] = u32(bus_read16(PC))
+    pipeline[1] = u32(bus_read16(PC & 0xFFFFFFFE))
     PC += 2
 }
 
@@ -79,7 +79,6 @@ cpu_prefetch16 :: proc() {
     pipeline[2] = u32(bus_read16(PC))
     pipeline[0] = pipeline[1]
     pipeline[1] = pipeline[2]
-    
     PC += 2
 }
 
@@ -87,11 +86,14 @@ cpu_prefetch32 :: proc() {
     pipeline[2] = bus_get32(PC)
     pipeline[0] = pipeline[1]
     pipeline[1] = pipeline[2]
-    
     PC += 4
 }
 
 cpu_step :: proc() -> u32 {
+    if(PC == 0x0800019A) {
+        pause = true
+        debug_draw()
+    }
     when !TEST_ENABLE {
         cpu_exec_irq()
 
@@ -878,95 +880,69 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
     Rn := Regs((opcode & 0xF0000) >> 16)
     list := u16(opcode & 0xFFFF)
     address := cpu_reg_get(Rn)
-    base_addr := address
-    cycles :u32= 2
-    //first := (intrinsics.count_leading_zeros(list) == u16(Rn))
+    cycles: u32 = 2
 
-    if(U) { //Increment
-        for i :u8= 0; i < 16; i += 1 {
-            if(utils_bit_get16(list, i)) {
-                i := Regs(i)
-                address += u32(P) * 4 //Pre increment
-                if(L) { //Load
-                    value := bus_read32(address)
-                    if(S && i == Regs.PC) {
+    // Transfer each selected register, honoring pre/post (P) and up/down (U)
+    for i: u8 = 0; i < 16; i += 1 {
+        if utils_bit_get16(list, i) {
+            reg := Regs(i)
+
+            // Pre increment/decrement per transfer
+            if U {
+                if P {
+                    address = u32(i64(address) + 4)
+                }
+            } else {
+                if P {
+                    address = u32(i64(address) - 4)
+                }
+            }
+
+            if L { // Load
+                value: u32 = bus_read32(address)
+                if reg == Regs.PC {
+                    // Load PC and force refetch
+                    cpu_reg_set(Regs.PC, value & 0xFFFFFFFE)
+                    refetch = true
+                    // If S set and current mode is not USER/SYSTEM, restore CPSR from SPSR
+                    if S && (CPSR.Mode != Modes.M_USER && CPSR.Mode != Modes.M_SYSTEM) {
                         CPSR = Flags(cpu_reg_get(Regs.SPSR))
-                    } else if(S) {
-                        regs[i][0] = value
+                    }
+                } else {
+                    // If S is set and we're in a privileged mode, load into user bank
+                    if S && (CPSR.Mode != Modes.M_USER && CPSR.Mode != Modes.M_SYSTEM) {
+                        regs[reg][0] = value
                     } else {
-                        cpu_reg_set(i, value)
-                    }
-                } else { //store
-                    value := cpu_reg_get(i)
-                    if(i == Regs.PC) {
-                        value += 4
-                    }
-                    if(S) {
-                        value = cpu_reg_raw(i, Modes.M_USER)
-                    }
-                    if(W && (Rn == i)) {
-                        cpu_reg_set(Rn, address) //Write back
-                        bus_write32(address, base_addr + u32(intrinsics.count_ones(list) * 4))
-                    } else {
-                        bus_write32(address, value)
+                        cpu_reg_set(reg, value)
                     }
                 }
-                address += (1 - u32(P)) * 4 //Post increment
-                cycles += 1
-            }
-        }
-    } else { //Decrement
-        address -= 40
-        for i :i32= 0; i < 16; i += 1 {
-            if(utils_bit_get16(list, u8(i))) {
-                i := Regs(i)
-                address += u32(P) * 4 //Pre decrement
-                if(L) { //Load
-                    value := bus_read32(address)
-                    if(S && i == Regs.PC) {
-                        CPSR = Flags(cpu_reg_get(Regs.SPSR))
-                    } else if(S) {
-                        regs[i][0] = value
-                    } else {
-                        cpu_reg_set(i, value)
-                    }
-                } else { //store
-                    value := cpu_reg_get(i)
-                    if(i == Regs.PC) {
-                        value += 4
-                    }
-                    if(S) {
-                        value = cpu_reg_raw(i, Modes.M_USER)
-                    }
-                    if(W && (Rn == i)) {
-                        cpu_reg_set(Rn, address) //Write back
-                        bus_write32(address, base_addr + u32(intrinsics.count_ones(list) * 4))
-                    } else {
-                        bus_write32(address, value)
-                    }
+            } else { // Store
+                value := cpu_reg_get(reg)
+                if reg == Regs.PC {
+                    value += 4
                 }
-                address -= (1 - u32(P)) * 4 //Post decrement
-                cycles += 1
+                bus_write32(address, value)
             }
+
+            // Post increment/decrement per transfer
+            if U {
+                if !P {
+                    address = u32(i64(address) + 4)
+                }
+            } else {
+                if !P {
+                    address = u32(i64(address) - 4)
+                }
+            }
+            cycles += 1
         }
     }
-    if(list == 0) {
-        if(L) {
-            PC = bus_read32(address)
-        } else {
-            value := PC
-            value += 4
-            bus_write32(address, value)
-        }
-        if(U) {
-            address += 0x40
-        } else {
-            address -= 0x40
-        }
+
+    // Write-back if W is set and Rn isn't in list (or it's a store)
+    if W && (!L || !utils_bit_get16(list, u8(Rn))) {
+        cpu_reg_set(Rn, address)
     }
-    if(W && (!L || !utils_bit_get16(list, u8(Rn)))) {
-        cpu_reg_set(Rn, address) //Write back
-    }
+
     return cycles
 }
 
@@ -1556,14 +1532,22 @@ cpu_push_pop :: proc(opcode: u16) -> u32 {
                 cycles += 1
             }
         }
-        if(R) { //POP PC
+        if(R || imm == 0) { //POP PC
             pc := bus_read32(sp)
-            cpu_reg_set(Regs.PC, utils_bit_clear32(pc, 0))
+            if(imm == 0 && !R) {
+                PC = pc - 2
+                refetch = true
+                sp += 60
+            } else {
+                cpu_reg_set(Regs.PC, utils_bit_clear32(pc, 0))
+            }
             sp += 4
             cycles += 1
         }
+        cpu_reg_set(Regs.SP, sp)
     } else { //PUSH - pre-decrement
         sp -= intrinsics.count_ones(imm) * 4 + (u32(R) * 4)
+        cpu_reg_set(Regs.SP, sp)
         for i :u8= 0; i < 8; i += 1 {
             if(utils_bit_get32(imm, i)) {
                 bus_write32(sp, cpu_reg_get(Regs(i)))
@@ -1571,13 +1555,17 @@ cpu_push_pop :: proc(opcode: u16) -> u32 {
                 cycles += 1
             }
         }
-        if(R) { //PUSH LR
-            bus_write32(sp, cpu_reg_get(Regs.LR))
-            sp += 4
+        if(R || imm == 0) { //PUSH LR
+            if(imm == 0 && !R) {
+                sp -= 64
+                bus_write32(sp, PC)
+                cpu_reg_set(Regs.SP, sp)
+            } else {
+                bus_write32(sp, cpu_reg_get(Regs.LR))
+            }
             cycles += 1
         }
     }
-    cpu_reg_set(Regs.SP, sp)
     return cycles
 }
 
