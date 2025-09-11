@@ -123,11 +123,11 @@ bus_write8 :: proc(addr: u32, value: u8) {
             addr &= 0x70003FF
             break
         case 0x8000000, //ROM
-            0x9000000,
-            0xA000000,
-            0xB000000,
-            0xC000000,
-            0xD000000:
+             0x9000000,
+             0xA000000,
+             0xB000000,
+             0xC000000,
+             0xD000000:
             return //Read only
         case 0xE000000:
             addr &= 0xE00FFFF

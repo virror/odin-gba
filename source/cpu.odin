@@ -459,7 +459,6 @@ cpu_mull_mlal :: proc(opcode: u32) -> u32 {
 }
 
 cpu_hw_transfer :: proc(opcode: u32) -> u32 {
-    //TODO: add cycles for PC + 2
     P := utils_bit_get32(opcode, 24)
     U := utils_bit_get32(opcode, 23)
     I := utils_bit_get32(opcode, 22)
@@ -467,6 +466,7 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
+    offs2 := Regs((opcode & 0xF00) >> 4)
     op := opcode & 0x60
     Rm := Regs(opcode & 0xF)
     offset := i64(cpu_reg_get(Rm))
@@ -475,7 +475,7 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
     data: u32
 
     if(I) {
-        offset = i64(Rm)
+        offset = i64(Rm) + i64(offs2)
     }
     if(!U) {
         offset = -offset
@@ -487,7 +487,13 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
         switch(op) {
         case 0x20: //LDRH
             shift := address & 0x1
-            data = u32(bus_read16(address))
+            if(Rn == Regs.PC) {
+                data = u32(bus_read16(address - 4))
+            } else if(Rm == Regs.PC && Rd == Regs.PC) {
+                data = u32(bus_read16(address + 4))
+            } else {
+                data = u32(bus_read16(address))
+            }
             if(shift == 1) {
                 data = cpu_ror32(data, 8)
             }
@@ -497,26 +503,27 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
             break
         case 0x60: //LDRSH
             data = u32(i32(i16(bus_read16(address))))
+            shift := address & 0x1
+            if(shift == 1) {
+                data = u32(i32(i16(cpu_ror32(data, 8))))
+            }
             break
         }
         cpu_reg_set(Rd, data)
         cycles = 3
     } else { //STRH
         value := cpu_reg_get(Rd)
-        bus_write16(address, u16(value))
+        if(Rn == Regs.PC) {
+            bus_write16(address - 4, u16(value))
+        } else {
+            bus_write16(address, u16(value))
+        }
         cycles = 2
     }
     address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
-    /*if(W || !P){
-        if(Rn != Rd || !L) {
+    if(!P || W) {
+        if((Rn != Rd) || !L) {
             cpu_reg_set(Rn, address)
-        }
-    }*/
-    if(P) {
-        cpu_reg_set(Rn, address)
-    } else {
-        if(W) {
-            //cpu_reg_set(Rn, address)
         }
     }
     return cycles
@@ -863,7 +870,6 @@ cpu_ldr :: proc(opcode: u32, I: bool) -> u32 {
 }
 
 cpu_ldm_stm :: proc(opcode: u32) -> u32 {
-    //TODO: ldm PC +2 cycles
     P := utils_bit_get32(opcode, 24)
     U := utils_bit_get32(opcode, 23)
     S := utils_bit_get32(opcode, 22)
@@ -897,9 +903,7 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
                     }
                     if(S) {
                         value = cpu_reg_raw(i, Modes.M_USER)
-                    } /*else if(i == Rn && !first) {
-                        value += u32(intrinsics.count_ones(list) * 4)
-                    }*/
+                    }
                     if(W && (Rn == i)) {
                         cpu_reg_set(Rn, address) //Write back
                         bus_write32(address, base_addr + u32(intrinsics.count_ones(list) * 4))
@@ -933,9 +937,7 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
                     }
                     if(S) {
                         value = cpu_reg_raw(i, Modes.M_USER)
-                    } /*else if(i == Rn && !first) {
-                        value -= u32(intrinsics.count_ones(list) * 4)
-                    }*/
+                    }
                     if(W && (Rn == i)) {
                         cpu_reg_set(Rn, address) //Write back
                         bus_write32(address, base_addr + u32(intrinsics.count_ones(list) * 4))
@@ -963,7 +965,7 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
         }
     }
     if(W && (!L || !utils_bit_get16(list, u8(Rn)))) {
-        //cpu_reg_set(Rn, address) //Write back
+        cpu_reg_set(Rn, address) //Write back
     }
     return cycles
 }
