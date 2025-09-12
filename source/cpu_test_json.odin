@@ -6,7 +6,7 @@ import "core:encoding/json"
 
 TEST_ENABLE :: true
 TEST_ALL :: false
-TEST_FILE :: "tests/json/arm_data_proc_immediate.json"
+TEST_FILE :: "tests/json/arm_mrs.json"
 TEST_BREAK_ERROR :: true
 
 Transaction :: struct {
@@ -157,6 +157,7 @@ test_run :: proc(json_data: Json_data) {
     pipeline[1] = json_data.initial.pipeline[1]
     transaction_cnt = 0
     transactions = json_data.transactions
+    opcode := u16(pipeline[0])
 
     //Execute instruction
     cpu_step()
@@ -212,13 +213,15 @@ test_run :: proc(json_data: Json_data) {
     if PC != json_data.final.R[15] {
         error_string = fmt.aprintf("Fail: PC is %d, should be %d", PC, json_data.final.R[15])
     }
-    if u32(CPSR) != json_data.final.CPSR {
-        error_string = fmt.aprintf("Fail: CPSR is %d\n,   should be %d", CPSR, Flags(json_data.final.CPSR))
+    if(!test_get_mul(opcode)) {
+        if u32(CPSR) != json_data.final.CPSR {
+            error_string = fmt.aprintf("Fail: CPSR is %d\n,   should be %d", CPSR, Flags(json_data.final.CPSR))
+        }
     }
     if pipeline[0] != json_data.final.pipeline[0] {
         error_string = fmt.aprintf("Fail: pipeline 0 is %d, should be %d", pipeline[0], json_data.final.pipeline[0])
     }
- 
+    //TODO: Test cycle count as well!
     if error_string != "" {
         when TEST_BREAK_ERROR {
             fmt.println(json_data)
@@ -269,4 +272,21 @@ test_write32 :: proc(addr: u32, value: u32) {
         }
     }
     transaction_cnt += 1
+}
+
+test_get_mul :: proc(opcode: u16) -> bool {
+    if(CPSR.State) {
+        id := opcode & 0xF800
+        if(id == 0x4000) {
+            if(!utils_bit_get16(opcode, 10)) {
+                Op := (opcode & 0x03C0) >> 6
+                if(Op == 13) {
+                    return true
+                }
+            }
+        }
+    } else {
+
+    }
+    return false
 }

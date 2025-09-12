@@ -122,7 +122,14 @@ cpu_step :: proc() -> u32 {
 
 cpu_reg_get :: proc(reg: Regs) -> u32 {
     switch(reg) {
-    case Regs.SP, Regs.LR, Regs.SPSR:
+    case Regs.SPSR:
+        mode := CPSR.Mode
+        if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
+            return regs[reg][7]
+        } else {
+            return regs[reg][u32(mode) - 16]
+        }
+    case Regs.SP, Regs.LR:
         mode := CPSR.Mode
         if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
             return regs[reg][0]
@@ -152,7 +159,16 @@ cpu_reg_get :: proc(reg: Regs) -> u32 {
 
 cpu_reg_set :: proc(reg: Regs, value: u32) {
     switch(reg) {
-    case Regs.SP, Regs.LR, Regs.SPSR:
+    case Regs.SPSR:
+        mode := CPSR.Mode
+        if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
+            regs[reg][7] = value
+        } else {
+            if(u8(mode) >= 16) {
+                regs[reg][u32(mode) - 16] = value
+            }
+        }
+    case Regs.SP, Regs.LR:
         mode := CPSR.Mode
         if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
             regs[reg][0] = value
@@ -161,7 +177,6 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
                 regs[reg][u32(mode) - 16] = value
             }
         }
-        break
     case Regs.CPSR:
         break //Unused
     case Regs.PC:
@@ -179,7 +194,6 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
         } else {
             regs[reg][0] = value
         }
-        break
     case Regs.R0..=Regs.R7:
         regs[reg][0] = value
     }
@@ -789,10 +803,11 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
             CPSR = Flags(reg)
         }
     } else {
-        if(Regs(op2) == Regs.PC) {
-            PC = reg
+        op2 := Regs(op2)
+        if(op2 == Regs.PC) {
+            PC = reg + 2
         } else {
-            cpu_reg_set(Regs(op2), reg)
+            cpu_reg_set(op2, reg)
         }
     }
 }
