@@ -136,7 +136,6 @@ texture_create :: proc(w: i32, h: i32, vram: ^u16) -> u32 {
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
     gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-    //gl.PixelStorei(gl.UNPACK_ROW_LENGTH, 1024)
     gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGB, w, h, 0, gl.RGBA, gl.UNSIGNED_SHORT_1_5_5_5_REV, vram)
 
     return texture

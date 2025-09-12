@@ -363,11 +363,11 @@ ppu_draw_16_16 :: proc(tile: u16, tile_data: u32, y_in_tile: u16, x_in_tile: u32
 }
 
 ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) {
-    /*for k :u32= 0; k < length; k += 1 {
+    for k :u32= 0; k < length; k += 1 {
         sprite := sprites[k]
-        y_coord := u16(sprite & 0xFF)
+        y_coord := i16(sprite & 0xFF)
         if(y_coord > 159) {
-            y_coord = utils_sign_extend32(y_coord, 8)
+            y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
         }
         //bool rot_scale = bit_get(sprite, 8);
         //bool double_size = bit_get(sprite, 9);
@@ -434,15 +434,15 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
         sprite_index := u32((sprite & 0x3FF00000000) >> 32) * 32
         palette_index := u32((sprite & 0xF00000000000) >> 44) * 32
 
-        if((y_coord <= line_count) && (y_coord + sizeY > line_count)) {
-            y_in_tile := line_count - y_coord
-            tile_size_x := sizeX / 8
+        if((y_coord <= i16(line_count)) && (y_coord + i16(sizeY) > i16(line_count))) {
+            y_in_tile := u16(i16(line_count) - y_coord)
+            tile_size_x := u16(sizeX / 8)
 
             if(vflip) { //Flip Y
-                y_in_tile = (sizeY - 1) - y_in_tile
+                y_in_tile = u16(sizeY - 1) - y_in_tile
             }
 
-            for j :u32= 0; j < tile_size_x; j += 1 {
+            for j :u16= 0; j < tile_size_x; j += 1 {
                 data: u32
                 x_tile := j
 
@@ -451,9 +451,9 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                 }
 
                 if(one_dimensional) {
-                    data = bus_get32(OVRAM + sprite_index + (x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 32 * tile_size_x))
+                    data = bus_get32(OVRAM + sprite_index + u32(x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 32 * tile_size_x))
                 } else {
-                    data = bus_get32(OVRAM + sprite_index + (x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 1024))
+                    data = bus_get32(OVRAM + sprite_index + u32(x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 1024))
                 }
 
                 for i :u32= 0; i < 8; i += 1 {
@@ -464,7 +464,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
 
                     palette_mask :u32= 0x0000000F << (x_in_tile * 4)
                     palette_offset := ((data & palette_mask) >> (x_in_tile * 4)) * 2
-                    x_pixel_offset := x_coord + (j * 8) + i
+                    x_pixel_offset := x_coord + (u32(j) * 8) + i
                     if(x_pixel_offset < 0) {
                         continue
                     }
@@ -476,7 +476,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                 }
             }
         }
-    }*/
+    }
 }
 
 ppu_get_pixels :: proc() -> []u16 {
