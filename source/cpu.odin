@@ -90,10 +90,10 @@ cpu_prefetch32 :: proc() {
 }
 
 cpu_step :: proc() -> u32 {
-    if(PC == 0x0800019A) {
+    /*if(PC == 0x0800019A) {
         pause = true
         debug_draw()
-    }
+    }*/
     when !TEST_ENABLE {
         cpu_exec_irq()
 
@@ -661,10 +661,12 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
         cpu_reg_set(Rd, res)
         break
     case 0x0E00000: //RSC
-        res = Op2 - Rn_reg + u32(CPSR.C) - 1
+        carry := 1 - u32(CPSR.C)
+        res = Op2 - Rn_reg - carry
+        sres := i64(i32(Op2) - i32(Rn_reg) - i32(carry))
         if(S) {
-            CPSR.C = u64(Op2) >= (u64(Rn_reg) - u64(CPSR.C) - 1)
-            CPSR.V = bool(((Op2 ~ Rn_reg) & (Op2 ~ res)) >> 31)
+            CPSR.C = (Op2 >= Rn_reg) & ((Op2 - Rn_reg) >= u32(carry))
+            CPSR.V = sres != i64(res)
             cpu_setZNArmAlu(Rd, res)
         }
         cpu_reg_set(Rd, res)
@@ -1251,16 +1253,16 @@ cpu_alu :: proc(opcode: u16) -> u32 {
         cpu_reg_set(Rd, res)
         break
     case 2: //LSL
-        res = cpu_lsl(RsReg, RdReg, &carry)
+        res = cpu_lsl(RsReg & 0xFF, RdReg, &carry)
         cpu_reg_set(Rd, res)
         CPSR.C = carry
         //V not affected
         break
     case 3: //LSR
         if(RsReg == 0) {
-            res = cpu_lsl(RsReg, RdReg, &carry)
+            res = cpu_lsl(RsReg & 0xFF, RdReg, &carry)
         } else {
-            res = cpu_lsr(RsReg, RdReg, &carry)
+            res = cpu_lsr(RsReg & 0xFF, RdReg, &carry)
         }
         cpu_reg_set(Rd, res)
         CPSR.C = carry
@@ -1268,9 +1270,9 @@ cpu_alu :: proc(opcode: u16) -> u32 {
         break
     case 4: //ASR
         if(RsReg == 0) {
-            res = cpu_lsl(RsReg, RdReg, &carry)
+            res = cpu_lsl(RsReg & 0xFF, RdReg, &carry)
         } else {
-            res = cpu_asr(RsReg, RdReg, &carry)
+            res = cpu_asr(RsReg & 0xFF, RdReg, &carry)
         }
         cpu_reg_set(Rd, res)
         CPSR.C = carry
@@ -1279,20 +1281,20 @@ cpu_alu :: proc(opcode: u16) -> u32 {
     case 5: //ADC
         res = RdReg + RsReg + u32(CPSR.C)
         cpu_reg_set(Rd, res)
-        CPSR.C = bool((RdReg + RsReg) & 0x10000000)
+        CPSR.C = ((0xFFFFFFFF - RdReg) < RsReg) | ((0xFFFFFFFF-(RdReg + RsReg)) < u32(CPSR.C))
         CPSR.V = bool((~(RdReg ~ RsReg) & (RsReg ~ res)) >> 31)
         break
     case 6: //SBC
         res = RdReg - RsReg - u32(!CPSR.C)
         cpu_reg_set(Rd, res)
-        CPSR.C = RdReg >= RsReg
+        CPSR.C = (RdReg >= RsReg) & ((RdReg - RsReg) >= u32(!CPSR.C))
         CPSR.V = bool(((RdReg ~ RsReg) & (RdReg ~ res)) >> 31)
         break
     case 7: //ROR
         if(RsReg == 0) {
-            res = cpu_lsl(RsReg, RdReg, &carry)
+            res = cpu_lsl(RsReg & 0xFF, RdReg, &carry)
         } else {
-            res = cpu_ror(RsReg, RdReg, &carry)
+            res = cpu_ror(RsReg & 0xFF, RdReg, &carry)
         }
         cpu_reg_set(Rd, res)
         CPSR.C = carry
@@ -1314,7 +1316,7 @@ cpu_alu :: proc(opcode: u16) -> u32 {
         break
     case 11: //CMN
         res = RdReg + RsReg
-        CPSR.C = bool((RdReg + RsReg) & 0x10000000)
+        CPSR.C = (0xFFFFFFFF - RdReg) < RsReg
         CPSR.V = bool((~(RdReg ~ RsReg) & (RsReg ~ res)) >> 31)
         break
     case 12: //ORR
@@ -1359,10 +1361,9 @@ cpu_ls_ext :: proc(opcode: u16) -> u32 {
         bus_write16(cpu_reg_get(Rb) + cpu_reg_get(Ro), u16(cpu_reg_get(Rd)))
         cycles = 2
         break
-    case 0x400: //LDSB
-        value := u32(bus_read8(cpu_reg_get(Rb) + cpu_reg_get(Ro)))
-        value = utils_sign_extend32(value, 8)
-        cpu_reg_set(Rd, value)
+    case 0x400: //LDRSB
+        value := bus_read8(cpu_reg_get(Rb) + cpu_reg_get(Ro))
+        cpu_reg_set(Rd, u32(i32(i8(value))))
         break
     case 0x800: //LDRH
         address := u32(cpu_reg_get(Rb) + cpu_reg_get(Ro))
@@ -1375,15 +1376,13 @@ cpu_ls_ext :: proc(opcode: u16) -> u32 {
         cpu_reg_set(Rd, data)
         break
     case 0xC00: //LDRSH
-        address := u32(cpu_reg_get(Rb) + cpu_reg_get(Ro))
+        address := cpu_reg_get(Rb) + cpu_reg_get(Ro)
         value: u32
         shift := int(address & 0x1)
         if(shift == 1) {
-            value = u32(bus_read8(address))
-            value = utils_sign_extend32(value, 8)
+            value = u32(i32(i8(bus_read8(address))))
         } else {
-            value = u32(bus_read16(address))
-            value = utils_sign_extend32(value, 16)
+            value = u32(i32(i16(bus_read16(address))))
         }
         cpu_reg_set(Rd, value)
         break
@@ -1761,15 +1760,9 @@ cpu_lsl :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
 
     if(shift == 0) {
         res = value
-    } else if (shift < 32) {
+    } else {
         res = value << shift
         logic_carry^ = utils_bit_get32(value, u8(32 - shift))
-    } else if(shift == 32) {
-        res = 0
-        logic_carry^ = (value & 1) == 1
-    } else {
-        res = 0
-        logic_carry^ = false
     }
     return res
 }
@@ -1778,17 +1771,15 @@ cpu_lsr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
     if (shift == 0) {
-        res = 0
-        logic_carry^ = (value & 0x80000000) > 0
-    } else if(shift < 32) {
+        if(!CPSR.State) {
+            logic_carry^ = (value & 0x80000000) > 0
+            res = 0
+        } else {
+            res = value
+        }
+    } else {
         res = value >> shift
         logic_carry^ = utils_bit_get32(value, u8(shift - 1))
-    } else if(shift == 32) {
-        res = 0
-        logic_carry^ = (value & 0x80000000) > 0
-    } else {
-        res = 0
-        logic_carry^ = false
     }
     return res
 }
@@ -1797,21 +1788,22 @@ cpu_asr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
     if (shift == 0) {
-        logic_carry^ = (value & 0x80000000) > 0
-        if(logic_carry^) {
-            res = 0xFFFFFFFF
+        if(!CPSR.State) {
+            logic_carry^ = (value & 0x80000000) > 0
+            if(logic_carry^) {
+                res = 0xFFFFFFFF
+            } else {
+                res = 0
+            }
         } else {
-            res = 0
+            res = value
         }
     } else if(shift < 32) {
         logic_carry^ = utils_bit_get32(value, u8(shift - 1))
-        res = value >> shift
-        res = utils_sign_extend32(res, 32 - shift)
+        res = u32(i32(value) >> shift)
     } else {
-        logic_carry^ = (value & 0x80000000) > 1
-        if(logic_carry^) {
-            res = utils_sign_extend32(res, 1)
-        }
+        logic_carry^ = (value & (1<<31)) > 0
+        res = u32((i32(value)) >> 31)
     }
     return res
 }
@@ -1819,21 +1811,23 @@ cpu_asr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
 cpu_ror :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
-    if (shift == 0) {
-        tmp_carry := utils_bit_get32(value, 0)
-        res = value >> 1
-        res |= (u32(CPSR.C) << 31)
-        logic_carry^ = tmp_carry
-    } else if(shift < 32) {
-        res = cpu_ror32(value, shift)
-        logic_carry^ = utils_bit_get32(value, u8(shift - 1))
-    } else if(shift == 32) {
-        res = value
-        logic_carry^ = (value & 0x80000000) > 0
+    if(shift == 0) {
+        if(!CPSR.State) {
+            res = (value >> 1) | (u32(CPSR.C) << 31)
+            logic_carry^ = bool(value & 0x1)
+        } else {
+            res = value
+        }
     } else {
         shift2 := shift % 32
-        res = cpu_ror32(value, shift2)
-        logic_carry^ = utils_bit_get32(value, u8(shift - 1))
+        if(shift2 == 0) {
+            res = value
+            logic_carry^ = (value & 0x80000000) > 0
+        } else {
+            res = cpu_ror32(value, shift2)
+            logic_carry^ = utils_bit_get32(value, u8(shift2 - 1))
+        }
+        
     }
     return res
 }
