@@ -1599,33 +1599,38 @@ cpu_sp_ofs :: proc(opcode: u16) -> u32 {
 cpu_ls_mp :: proc(opcode: u16) -> u32 {
     L := utils_bit_get16(opcode, 11)
     Rb := Regs((opcode & 0x0700) >> 8)
-    imm := u32(opcode & 0x00FF)
-    addr := cpu_reg_get(Rb)
+    rlist := u32(opcode & 0x00FF)
+    oaddr := cpu_reg_get(Rb)
+    addr := oaddr
     cycles :u32= 2
 
     for i :u8= 0; i < 8; i += 1 {
         i := Regs(i)
-        if(utils_bit_get32(imm, u8(i))) {
+        if(utils_bit_get32(rlist, u8(i))) {
             if(L) { //LDMIA
                 cpu_reg_set(i, bus_read32(addr))
             } else { //STMIA
                 value := cpu_reg_get(i)
                 bus_write32(addr, value)
+                if(utils_bit_get32(rlist, u8(Rb))) {
+                    cpu_reg_set(Rb, oaddr + (intrinsics.count_ones(rlist) * 4))
+                }
             }
             addr += 4
             cycles += 1
         }
     }
-    if(imm == 0) {
+    if(rlist == 0) {
         if(L) {
             PC = bus_read32(addr)
+            PC -= 2
+            refetch = true
         } else {
-            value := PC + 2
-            bus_write32(addr, value)
+            bus_write32(addr, PC)
         }
         addr += 0x40
     }
-    if(!L || !utils_bit_get32(imm, u8(Rb))) {
+    if(!L || !utils_bit_get32(rlist, u8(Rb))) {
         cpu_reg_set(Rb, addr)
     }
     return cycles
