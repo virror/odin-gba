@@ -1115,11 +1115,19 @@ cpu_shift :: proc(opcode: u16) -> u32 {
         cpu_reg_set(Rd, res)
         break
     case 0x0800: //LSR
-        res = cpu_lsr(imm, Rs, &carry)
+        if(imm == 0) {
+            res = cpu_lsr(32, Rs, &carry)
+        } else {
+            res = cpu_lsr(imm, Rs, &carry)
+        }
         cpu_reg_set(Rd, res)
         break
     case 0x1000: //ASR
-        res = cpu_asr(imm, Rs, &carry)
+        if(imm == 0) {
+            res = cpu_asr(32, Rs, &carry)
+        } else {
+            res = cpu_asr(imm, Rs, &carry)
+        }
         cpu_reg_set(Rd, res)
         break
     }
