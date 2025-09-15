@@ -1365,41 +1365,38 @@ cpu_ld_pc :: proc(opcode: u16) -> u32 {
 }
 
 cpu_ls_ext :: proc(opcode: u16) -> u32 {
-    Op := (opcode & 0x0C00)
+    Op := opcode & 0x0C00
     Ro := Regs((opcode & 0x01C0) >> 6)
     Rb := Regs((opcode & 0x0038) >> 3)
     Rd := Regs(opcode & 0x0007)
     cycles :u32= 3
+    address := cpu_reg_get(Rb) + cpu_reg_get(Ro)
 
     switch(Op) {
     case 0x000: //STRH
-        bus_write16(cpu_reg_get(Rb) + cpu_reg_get(Ro), u16(cpu_reg_get(Rd)))
+        bus_write16(address, u16(cpu_reg_get(Rd)))
         cycles = 2
         break
     case 0x400: //LDRSB
-        value := bus_read8(cpu_reg_get(Rb) + cpu_reg_get(Ro))
+        value := bus_read8(address)
         cpu_reg_set(Rd, u32(i32(i8(value))))
         break
     case 0x800: //LDRH
-        address := u32(cpu_reg_get(Rb) + cpu_reg_get(Ro))
         shift := address & 0x1
         address2 := u32(address & ~shift)
         data := u32(bus_read16(address2))
-        if(shift == 1) {
+        if shift == 1 {
             data = cpu_ror32(data, 8)
         }
         cpu_reg_set(Rd, data)
         break
     case 0xC00: //LDRSH
-        address := cpu_reg_get(Rb) + cpu_reg_get(Ro)
-        value: u32
-        shift := int(address & 0x1)
+        shift := address & 0x1
+        value := i16(bus_read16(address))
         if(shift == 1) {
-            value = u32(i32(i8(bus_read8(address))))
-        } else {
-            value = u32(i32(i16(bus_read16(address))))
+            value = i16(cpu_ror32(u32(value), 8))
         }
-        cpu_reg_set(Rd, value)
+        cpu_reg_set(Rd, u32(i32(value)))
         break
     }
     return cycles
@@ -1411,18 +1408,18 @@ cpu_ls_reg :: proc(opcode: u16) -> u32 {
     Rb := Regs((opcode & 0x0038) >> 3)
     Rd := Regs((opcode & 0x0007))
     cycles :u32= 3
+    address := cpu_reg_get(Rb) + cpu_reg_get(Ro)
 
     switch(Op) {
     case 0x000: //STR
-        bus_write32(cpu_reg_get(Rb) + cpu_reg_get(Ro), cpu_reg_get(Rd))
+        bus_write32(address, cpu_reg_get(Rd))
         cycles = 2
         break
     case 0x400: //STRB
-        bus_write8(cpu_reg_get(Rb) + cpu_reg_get(Ro), u8(cpu_reg_get(Rd)))
+        bus_write8(address, u8(cpu_reg_get(Rd)))
         cycles = 2
         break
     case 0x800: //LDR
-        address := cpu_reg_get(Rb) + cpu_reg_get(Ro)
         shift := address & 0x3
         address = address & ~shift
         data := bus_read32(address)
@@ -1430,7 +1427,7 @@ cpu_ls_reg :: proc(opcode: u16) -> u32 {
         cpu_reg_set(Rd, data)
         break
     case 0xC00: //LDRB
-        cpu_reg_set(Rd, u32(bus_read8(cpu_reg_get(Rb) + cpu_reg_get(Ro))))
+        cpu_reg_set(Rd, u32(bus_read8(address)))
         break
     }
     return cycles
