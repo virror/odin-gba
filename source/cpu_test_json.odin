@@ -157,7 +157,7 @@ test_run :: proc(json_data: Json_data) {
     pipeline[1] = json_data.initial.pipeline[1]
     transaction_cnt = 0
     transactions = json_data.transactions
-    opcode := u16(pipeline[0])
+    opcode := pipeline[0]
 
     //Execute instruction
     cpu_step()
@@ -274,8 +274,9 @@ test_write32 :: proc(addr: u32, value: u32) {
     transaction_cnt += 1
 }
 
-test_get_mul :: proc(opcode: u16) -> bool {
+test_get_mul :: proc(opcode: u32) -> bool {
     if(CPSR.State) {
+        opcode := u16(opcode)
         id := opcode & 0xF800
         if(id == 0x4000) {
             if(!utils_bit_get16(opcode, 10)) {
@@ -286,7 +287,12 @@ test_get_mul :: proc(opcode: u16) -> bool {
             }
         }
     } else {
-
+        id := opcode & 0xE000000
+        if(id == 0x00000000) {
+            if((opcode & 0x10000F0) == 0x0000090) {
+                return true
+            }
+        }
     }
     return false
 }

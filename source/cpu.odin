@@ -329,12 +329,10 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
         if((opcode & 0xFFFFFF0) == 0x12FFF10) {
             retval = cpu_bx(opcode)
         } else if((opcode & 0x10000F0) == 0x0000090) { //MUL, MLA
-            if((opcode & 0x00000F0) == 0x0000090) {
-                if(utils_bit_get32(opcode, 23)) { //MULL, MLAL
-                    retval = cpu_mull_mlal(opcode)
-                } else {
-                    retval = cpu_mul_mla(opcode)
-                }
+            if(utils_bit_get32(opcode, 23)) { //MULL, MLAL
+                retval = cpu_mull_mlal(opcode)
+            } else {
+                retval = cpu_mul_mla(opcode)
             }
         } else if ((opcode & 0x10000F0) == 0x1000090) {
             retval = cpu_swap(opcode)
