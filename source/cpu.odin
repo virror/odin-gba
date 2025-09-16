@@ -675,10 +675,10 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
     case 0x0E00000: //RSC
         carry := 1 - u32(CPSR.C)
         res = Op2 - Rn_reg - carry
-        sres := i64(i32(Op2) - i32(Rn_reg) - i32(carry))
+        sres := i64(i32(Op2)) - i64(i32(Rn_reg)) - i64(i32(carry))
         if(S) {
             CPSR.C = (Op2 >= Rn_reg) & ((Op2 - Rn_reg) >= u32(carry))
-            CPSR.V = sres != i64(res)
+            CPSR.V = i64(i32(res)) != sres
             cpu_setZNArmAlu(Rd, res)
         }
         cpu_reg_set(Rd, res)
