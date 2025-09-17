@@ -20,7 +20,6 @@ Regs :: enum {
     SP = 13,
     LR = 14,
     PC = 15,
-    CPSR = 16,
     SPSR = 17,
 }
 
@@ -136,8 +135,6 @@ cpu_reg_get :: proc(reg: Regs) -> u32 {
         } else {
             return regs[reg][u32(mode) - 16]
         }
-    case Regs.CPSR:
-        break //Unused
     case Regs.PC:
         if(CPSR.State) {
             return PC - 2
@@ -177,8 +174,6 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
                 regs[reg][u32(mode) - 16] = value
             }
         }
-    case Regs.CPSR:
-        break //Unused
     case Regs.PC:
         if(CPSR.State) {
             PC = (value - 2) & 0xFFFFFFFE
@@ -202,8 +197,6 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
 cpu_reg_raw :: proc(reg: Regs, mode: Modes) -> u32 {
     if reg == Regs.PC {
         return PC
-    } else if (reg == Regs.CPSR) {
-        return u32(CPSR)
     } else { 
         return regs[reg][u32(mode) - 16]
     }
@@ -480,7 +473,7 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
-    offs2 := Regs((opcode & 0xF00) >> 4)
+    offs2 := (opcode & 0xF00) >> 4
     op := opcode & 0x60
     Rm := Regs(opcode & 0xF)
     offset := i64(cpu_reg_get(Rm))
@@ -503,8 +496,6 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
             shift := address & 0x1
             if(Rn == Regs.PC) {
                 data = u32(bus_read16(address - 4))
-            } else if(Rm == Regs.PC && Rd == Regs.PC) {
-                data = u32(bus_read16(address + 4))
             } else {
                 data = u32(bus_read16(address))
             }
@@ -777,9 +768,9 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
     spsr := utils_bit_get32(opcode, 22)
     reg := spsr ? cpu_reg_get(Regs.SPSR) : u32(CPSR)
     msr := utils_bit_get32(opcode, 21)
-    mask: u32
 
     if(msr) {
+        mask: u32
         if(utils_bit_get32(opcode, 19)) {
             mask |= 0xFF000000
         }
@@ -803,7 +794,7 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
     } else {
         op2 := Regs(op2)
         if(op2 == Regs.PC) {
-            PC = reg + 2
+            PC = reg + 4
         } else {
             cpu_reg_set(op2, reg)
         }
@@ -1856,15 +1847,13 @@ cpu_ror :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
 }
 
 cpu_rol32 :: proc(number: u32, count: u32) -> u32 {
-    count := count
-    mask :u32= (8 * size_of(number) - 1)
-    count &= mask
-    return (number << count) | (number >> ((-count)&mask))
+    lower := number << count
+    upper := number >> (32 - count)
+    return lower | upper
 }
 
 cpu_ror32 :: proc(number: u32, count: u32) -> u32 {
-    count := count
-    mask :u32= (8 * size_of(number) - 1)
-    count &= mask
-    return (number >> count) | (number << ((-count)&mask))
+    lower := number >> count
+    upper := number << (32 - count)
+    return lower | upper
 }

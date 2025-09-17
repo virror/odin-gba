@@ -40,7 +40,7 @@ debug_draw :: proc() {
     debug_draw_reg2("LR_irq   ", cpu_reg_raw(Regs.LR, Modes.M_IRQ), 10, 335, Modes.M_IRQ)
     debug_draw_reg2("LR_und   ", cpu_reg_raw(Regs.LR, Modes.M_UNDEFINED), 240, 335, Modes.M_UNDEFINED)
 
-    debug_draw_reg("CPSR     ", cpu_reg_raw(Regs.CPSR, Modes.M_USER), 10, 360)
+    debug_draw_reg("CPSR     ", u32(CPSR), 10, 360)
     debug_draw_reg2("SPSR_fiq ", cpu_reg_raw(Regs.SPSR, Modes.M_FIQ), 240, 360, Modes.M_FIQ)
     debug_draw_reg2("SPSR_svc ", cpu_reg_raw(Regs.SPSR, Modes.M_SUPERVISOR), 10, 385, Modes.M_SUPERVISOR)
     debug_draw_reg2("SPSR_abt ", cpu_reg_raw(Regs.SPSR, Modes.M_ABORT), 240, 385, Modes.M_ABORT)
