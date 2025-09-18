@@ -179,7 +179,7 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
             PC = (value - 2) & 0xFFFFFFFE
             refetch = true
         } else {
-            PC = value// & 0xFFFFFFFE
+            PC = value
             refetch = true
         }
     case Regs.R8..=Regs.R12:
