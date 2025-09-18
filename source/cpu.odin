@@ -124,7 +124,7 @@ cpu_reg_get :: proc(reg: Regs) -> u32 {
     case Regs.SPSR:
         mode := CPSR.Mode
         if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
-            return regs[reg][7]
+            return u32(CPSR)
         } else {
             return regs[reg][u32(mode) - 16]
         }
@@ -159,7 +159,7 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
     case Regs.SPSR:
         mode := CPSR.Mode
         if(mode == Modes.M_USER || mode == Modes.M_SYSTEM) {
-            regs[reg][7] = value
+            //Do nothing
         } else {
             if(u8(mode) >= 16) {
                 regs[reg][u32(mode) - 16] = value
