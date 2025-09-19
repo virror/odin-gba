@@ -1,8 +1,8 @@
 package main
 
 import "core:fmt"
-import sdl "vendor:sdl2"
-import sdlttf "vendor:sdl2/ttf"
+import sdl "vendor:sdl3"
+import sdlttf "vendor:sdl3/ttf"
 
 font: ^sdlttf.Font
 
@@ -98,26 +98,26 @@ debug_draw :: proc() {
     }
 }
 
-debug_draw_op_arm :: proc(opText: cstring, pc: u32, posX: i32, posY: i32) {
+debug_draw_op_arm :: proc(opText: cstring, pc: u32, posX: f32, posY: f32) {
     op := pipeline[pc]
     name, suffix := debug_get_arm_names(op)
     line := fmt.caprintf("%s %8x %s %s", opText, op, name, suffix)
     debug_text(line, posX, posY, {230, 230, 230, 230})
 }
 
-debug_draw_op_thumb :: proc(opText: cstring, pc: u32, posX: i32, posY: i32) {
+debug_draw_op_thumb :: proc(opText: cstring, pc: u32, posX: f32, posY: f32) {
     op := u16(pipeline[pc])
     name := debug_get_thumb_names(op)
     line := fmt.caprintf("%s %8x %s", opText, op, name)
     debug_text(line, posX, posY, {230, 230, 230, 230})
 }
 
-debug_draw_reg :: proc(regText: cstring, reg: u32, posX: i32, posY: i32) {
+debug_draw_reg :: proc(regText: cstring, reg: u32, posX: f32, posY: f32) {
     line := fmt.caprintf("%s %8x", regText, reg)
     debug_text(line, posX, posY, {230, 230, 230, 230})
 }
 
-debug_draw_reg2 :: proc(regText: cstring, reg: u32, posX: i32, posY: i32, mode: Modes) {
+debug_draw_reg2 :: proc(regText: cstring, reg: u32, posX: f32, posY: f32, mode: Modes) {
     current_mode := CPSR.Mode
     if(current_mode == Modes.M_USER) {
         current_mode = Modes.M_SYSTEM
@@ -130,7 +130,7 @@ debug_draw_reg2 :: proc(regText: cstring, reg: u32, posX: i32, posY: i32, mode: 
     }
 }
 
-debug_draw_flag :: proc(flagText: cstring, flag: u8, posX: i32, posY: i32) {
+debug_draw_flag :: proc(flagText: cstring, flag: u8, posX: f32, posY: f32) {
     line := fmt.caprintf("%s %s", flagText, utils_bit_get32(u32(CPSR), flag)?"true":"false")
     debug_text(line, posX, posY, {230, 230, 230, 230})
 }
@@ -139,23 +139,22 @@ debug_quit :: proc() {
     sdlttf.CloseFont(font)
 }
 
-debug_text :: proc(text: cstring, posX: i32, posY: i32, color: sdl.Color) {
-    surface := sdlttf.RenderText_Solid(font, text, color)
+debug_text :: proc(text: cstring, posX: f32, posY: f32, color: sdl.Color) {
+    surface := sdlttf.RenderText_Solid(font, text, len(text), color)
     texture := sdl.CreateTextureFromSurface(debug_render, surface)
     
-    texW :i32= 0
-    texH :i32= 0
-    sdl.QueryTexture(texture, nil, nil, &texW, &texH)
+    texW :f32= 0
+    texH :f32= 0
+    sdl.GetTextureSize(texture, &texW, &texH)
     
-    text_rect: sdl.Rect
+    text_rect: sdl.FRect
     text_rect.x = posX
     text_rect.y = posY
     text_rect.w = texW
     text_rect.h = texH
     
-    sdl.RenderCopy(debug_render, texture, nil, &text_rect)
-
-    sdl.FreeSurface(surface)
+    sdl.RenderTexture(debug_render, texture, nil, &text_rect)
+    sdl.DestroySurface(surface)
     sdl.DestroyTexture(texture)
 }
 

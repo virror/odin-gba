@@ -1,6 +1,6 @@
 package main
 
-import sdl "vendor:sdl2"
+import sdl "vendor:sdl3"
 import gl "vendor:OpenGL"
 import "core:strings"
 import "core:fmt"
@@ -21,9 +21,9 @@ window: ^sdl.Window
 
 render_init :: proc(window2: ^sdl.Window) {
     window = window2
-    sdl.GL_SetAttribute(sdl.GLattr.CONTEXT_MAJOR_VERSION, 3)
-    sdl.GL_SetAttribute(sdl.GLattr.CONTEXT_MINOR_VERSION, 3)
-    sdl.GL_SetAttribute(sdl.GLattr.CONTEXT_PROFILE_MASK, cast(i32)sdl.GLprofile.CORE)
+    sdl.GL_SetAttribute(sdl.GLAttr.CONTEXT_MAJOR_VERSION, 3)
+    sdl.GL_SetAttribute(sdl.GLAttr.CONTEXT_MINOR_VERSION, 3)
+    sdl.GL_SetAttribute(sdl.GLAttr.CONTEXT_PROFILE_MASK, cast(i32)sdl.GLProfile.CORE)
 
     gl_context = sdl.GL_CreateContext(window)
     assert(gl_context != nil, "Failed to create opengl context")
@@ -46,7 +46,7 @@ update_viewport :: proc(w: i32, h: i32) {
 
 render_delete :: proc() {
     gl.DeleteProgram(shader_program)
-    sdl.GL_DeleteContext(gl_context)
+    sdl.GL_DestroyContext(gl_context)
 }
 
 create_quad :: proc(v1: Vector2f, v2: Vector2f, v3: Vector2f, v4: Vector2f,

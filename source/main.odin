@@ -2,14 +2,15 @@ package main
 
 import "core:math"
 import "core:fmt"
-import sdl "vendor:sdl2"
-import sdlttf "vendor:sdl2/ttf"
+import sdl "vendor:sdl3"
+import sdlttf "vendor:sdl3/ttf"
 
 WIN_WIDTH :: 240
 WIN_HEIGHT :: 160
+WIN_SCALE :: 2
 
 START_BIOS :: true
-ROM_PATH :: "tests/armwrestler.gba"
+ROM_PATH :: "tests/brin_demo.gba"
 
 @(private="file")
 window: ^sdl.Window
@@ -31,48 +32,47 @@ dma2: Dma
 dma3: Dma
 
 main :: proc() {
-    sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMECONTROLLER | sdl.INIT_AUDIO)
+    if(!sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO)) {
+        panic("Failed to init SDL3!")
+    }
     defer sdl.Quit()
 
-    sdlttf.Init()
+    if(!sdlttf.Init()) {
+        panic("Failed to init sdl3 ttf!")
+    }
     defer sdlttf.Quit()
     
     init_controller()
 
-    window = sdl.CreateWindow("odin-gba", 100, 100, WIN_WIDTH, WIN_HEIGHT,
+    window = sdl.CreateWindow("odin-gba", WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE,
         sdl.WINDOW_OPENGL)
     assert(window != nil, "Failed to create main window")
     defer sdl.DestroyWindow(window)
+    sdl.SetWindowPosition(window, 200, 200)
     render_init(window)
     defer render_delete()
+    update_viewport(WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE)
 
-    debug_window := sdl.CreateWindow("debug", 800, 100, 600, 600,
-        sdl.WINDOW_OPENGL | sdl.WINDOW_RESIZABLE)
+    debug_window: ^sdl.Window
+    if(!sdl.CreateWindowAndRenderer("debug", 800, 600, sdl.WINDOW_OPENGL, &debug_window, &debug_render)) {
+        panic("Failed to create debug window")
+    }
     assert(debug_window != nil, "Failed to create debug window")
     defer sdl.DestroyWindow(debug_window)
-    debug_render = sdl.CreateRenderer(debug_window, -1, sdl.RENDERER_ACCELERATED)
     defer sdl.DestroyRenderer(debug_render)
+    sdl.SetWindowPosition(debug_window, 700, 100)
 
     // Audio stuff
     desired: sdl.AudioSpec
-    obtained: sdl.AudioSpec
-
     desired.freq = 48000
-    desired.format = sdl.AUDIO_F32
+    desired.format = sdl.AudioFormat.F32
     desired.channels = 1
-    desired.samples = 64
-    desired.callback = nil//audio_handler
+    //desired.samples = 64
 
-    device := sdl.OpenAudioDevice(
-        nil,
-        false,
-        &desired,
-        &obtained,
-        nil,
-    )
-    defer sdl.CloseAudioDevice(device)
+    device := sdl.OpenAudioDeviceStream(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, nil, nil)
+    defer sdl.ClearAudioStream(device)
 
-    assert(device != 0, "Failed to create audio device") // TODO: Handle error
+    assert(device != nil, "Failed to create audio device") // TODO: Handle error
 
     debug_init()
     defer debug_quit()
@@ -183,22 +183,20 @@ handle_events :: proc() {
             quit = true
             bus_save_ram()
             break
-        case sdl.EventType.WINDOWEVENT:
-            if(event.window.event == sdl.WindowEventID.CLOSE) {
-                quit = true
-                bus_save_ram()
-            }
+        case sdl.EventType.WINDOW_CLOSE_REQUESTED:
+            quit = true
+            bus_save_ram()
             break
-        case sdl.EventType.KEYDOWN:
-            handle_keys_down(event.key.keysym.sym)
+        case sdl.EventType.KEY_DOWN:
+            handle_keys_down(event.key.key)
             break
-        case sdl.EventType.CONTROLLERBUTTONDOWN:
+        case sdl.EventType.GAMEPAD_BUTTON_DOWN:
             //handle_controller_down(event.cbutton.button)
             break
-        case sdl.EventType.KEYUP:
-            handle_keys_up(event.key.keysym.sym)
+        case sdl.EventType.KEY_UP:
+            handle_keys_up(event.key.key)
             break
-        case sdl.EventType.CONTROLLERBUTTONUP:
+        case sdl.EventType.GAMEPAD_BUTTON_UP:
             //handle_controller_up(event.cbutton.button)
             break
         }
@@ -206,54 +204,54 @@ handle_events :: proc() {
 }
 
 handle_keys_down :: proc(keycode: sdl.Keycode) {
-    #partial switch(keycode) {
-    case sdl.Keycode.SPACE:
+    switch(keycode) {
+    case sdl.K_SPACE:
         last_pause = pause
         pause = !pause
         break
-    case sdl.Keycode.s:
+    case sdl.K_S:
         step = true
         break
-    case sdl.Keycode.p:
+    case sdl.K_P:
         //dump_mem()
         break
-    case sdl.Keycode.DOWN:
+    case sdl.K_DOWN:
     //case sdl.GameControllerButton.DPAD_DOWN:
         input_set_key(Keys.DOWN)
         break
-    case sdl.Keycode.UP:
+    case sdl.K_UP:
     //case sdl.GameControllerButton.DPAD_UP:
         input_set_key(Keys.UP)
         break
-    case sdl.Keycode.LEFT:
+    case sdl.K_LEFT:
     //case sdl.GameControllerButton.DPAD_LEFT:
         input_set_key(Keys.LEFT)
         break
-    case sdl.Keycode.RIGHT:
+    case sdl.K_RIGHT:
     //case sdl.GameControllerButton.DPAD_RIGHT:
         input_set_key(Keys.RIGHT)
         break
-    case sdl.Keycode.q:
+    case sdl.K_Q:
     //case sdl.GameControllerButton.BACK:
         input_set_key(Keys.SELECT)
         break
-    case sdl.Keycode.w:
+    case sdl.K_W:
     //case sdl.GameControllerButton.START:
         input_set_key(Keys.START)
         break
-    case sdl.Keycode.z:
+    case sdl.K_Z:
     //case sdl.GameControllerButton.A:
         input_set_key(Keys.A)
         break
-    case sdl.Keycode.x:
+    case sdl.K_X:
     //case sdl.GameControllerButton.B:
         input_set_key(Keys.B)
         break
-    case sdl.Keycode.c:
+    case sdl.K_C:
     //case sdl.GameControllerButton.LEFTSHOULDER:
         input_set_key(Keys.L)
         break
-    case sdl.Keycode.v:
+    case sdl.K_V:
     //case sdl.GameControllerButton.RIGHTSHOULDER:
         input_set_key(Keys.R)
         break
@@ -261,44 +259,44 @@ handle_keys_down :: proc(keycode: sdl.Keycode) {
 }
 
 handle_keys_up :: proc(keycode: sdl.Keycode) {
-    #partial switch(keycode) {
-    case sdl.Keycode.DOWN:
+    switch(keycode) {
+    case sdl.K_DOWN:
     //case sdl.GameControllerButton.DPAD_DOWN:
         input_clear_key(Keys.DOWN)
         break
-    case sdl.Keycode.UP:
+    case sdl.K_UP:
     //case sdl.GameControllerButton.DPAD_UP:
         input_clear_key(Keys.UP)
         break
-    case sdl.Keycode.LEFT:
+    case sdl.K_LEFT:
     //case sdl.GameControllerButton.DPAD_LEFT:
         input_clear_key(Keys.LEFT)
         break
-    case sdl.Keycode.RIGHT:
+    case sdl.K_RIGHT:
     //case sdl.GameControllerButton.DPAD_RIGHT:
         input_clear_key(Keys.RIGHT)
         break
-    case sdl.Keycode.q:
+    case sdl.K_Q:
     //case sdl.GameControllerButton.BACK:
         input_clear_key(Keys.SELECT)
         break
-    case sdl.Keycode.w:
+    case sdl.K_W:
     //case sdl.GameControllerButton.START:
         input_clear_key(Keys.START)
         break
-    case sdl.Keycode.z:
+    case sdl.K_Z:
     //case sdl.GameControllerButton.A:
         input_clear_key(Keys.A)
         break
-    case sdl.Keycode.x:
+    case sdl.K_X:
     //case sdl.GameControllerButton.B:
         input_clear_key(Keys.B)
         break
-    case sdl.Keycode.c:
+    case sdl.K_C:
     //case sdl.GameControllerButton.LEFTSHOULDER:
         input_clear_key(Keys.L)
         break
-    case sdl.Keycode.v:
+    case sdl.K_V:
     //case sdl.GameControllerButton.RIGHTSHOULDER:
         input_clear_key(Keys.R)
         break
@@ -318,10 +316,12 @@ handle_keys_up :: proc(keycode: sdl.Keycode) {
 }*/
 
 init_controller :: proc() {
-    controller: ^sdl.GameController
-    for i :i32= 0; i < sdl.NumJoysticks(); i += 1 {
-        if (sdl.IsGameController(i)) {
-            controller = sdl.GameControllerOpen(i)
+    controller: ^sdl.Gamepad
+    count: i32
+    ids := sdl.GetGamepads(&count)
+    for i in 0 ..< count {
+        if (sdl.IsGamepad(ids[i])) {
+            controller = sdl.OpenGamepad(ids[i])
             if (controller != nil) {
                 break
             }
