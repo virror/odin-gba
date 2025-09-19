@@ -101,10 +101,12 @@ main :: proc() {
     }
 
     cycles_since_last_sample: u32
+    cycles_per_sample :u32= 340
     accumulated_time := 0.0
     prev_time := sdl.GetTicks()
     frame_cnt := 0.0
     step_length := 1.0 / 60.0
+    quadricycle_fragments: u32
 
     draw_debug()
 
@@ -123,15 +125,15 @@ main :: proc() {
             tmr_step(&timer3, cycles)
             redraw = ppu_step(cycles)
             // APU uses one quarter the clock frequency
-            /*quadricycle_fragments += cycles;
-            apu.advance(quadricycle_fragments / 4);
-            quadricycle_fragments &= 3;
+            quadricycle_fragments += cycles
+            apu_advance(quadricycle_fragments / 4)
+            quadricycle_fragments &= 3
 
             if (cycles_since_last_sample >= cycles_per_sample) {
-                cycles_since_last_sample -= cycles_per_sample;
-                float out = apu.output();
-                buffer_push_back(out);
-            }*/
+                cycles_since_last_sample -= cycles_per_sample
+                out := apu_output()
+                buffer_push_back(out)
+            }
 
             if step {
                 draw_debug()
@@ -213,9 +215,6 @@ handle_keys_down :: proc(keycode: sdl.Keycode) {
         break
     case sdl.K_S:
         step = true
-        break
-    case sdl.K_P:
-        //dump_mem()
         break
     case sdl.K_DOWN:
     //case sdl.GameControllerButton.DPAD_DOWN:
