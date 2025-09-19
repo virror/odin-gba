@@ -2,6 +2,7 @@ package main
 
 import "core:math"
 import "core:fmt"
+import "core:path/filepath"
 import sdl "vendor:sdl3"
 import sdlttf "vendor:sdl3/ttf"
 
@@ -94,6 +95,7 @@ main :: proc() {
     }
 
     bus_load_rom(ROM_PATH)
+    file_name := filepath.short_stem(ROM_PATH)
     when !START_BIOS {
         cpu_init_no_bios()
     }
@@ -154,7 +156,7 @@ main :: proc() {
             if(frame_cnt > 0.25) { //Update frame counter 4 times/s
                 frame_cnt = 0
                 frames := math.round(1.0 / accumulated_time)
-                line := fmt.caprintf("%.1ffps", frames)  //(title + " - " + frames + "fps"))
+                line := fmt.caprintf("odin-gba - %s %.1ffps", file_name, frames)
                 sdl.SetWindowTitle(window, line)
             }
             accumulated_time = 0
