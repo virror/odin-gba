@@ -783,12 +783,19 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
         if(utils_bit_get32(opcode, 16) && CPSR.Mode != Modes.M_USER) {
             mask |= 0x000000FF
         }
-        reg &= ~mask
-        reg |= (op2 & mask)
-
+        fmt.println(spsr)
+        fmt.println(u32(CPSR.Mode))
         if(spsr) {
+            reg &= ~mask
+            reg |= (op2 & mask)
             cpu_reg_set(Regs.SPSR, reg)
         } else {
+            op2 := op2
+            if ((mask & 0xFF) > 0) {
+                op2 |= 0x10
+            }
+            reg &= ~mask
+            reg |= (op2 & mask)
             CPSR = Flags(reg)
         }
     } else {
@@ -884,71 +891,69 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
     W := utils_bit_get32(opcode, 21)
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
-    list := u16(opcode & 0xFFFF)
+    rlist := u16(opcode & 0xFFFF)
+    num_regs := intrinsics.count_ones(u32(rlist)) << 2
     address := cpu_reg_get(Rn)
+    origAddr := address
     cycles: u32 = 2
 
-    // Transfer each selected register, honoring pre/post (P) and up/down (U)
-    for i: u8 = 0; i < 16; i += 1 {
-        if utils_bit_get16(list, i) {
-            reg := Regs(i)
+    if(rlist == 0) {
+        num_regs = 64
+        rlist = 0x8000
+    }
+    has_PC := utils_bit_get16(rlist, 15)
 
-            // Pre increment/decrement per transfer
-            if U {
-                if P {
-                    address = u32(i64(address) + 4)
-                }
-            } else {
-                if P {
-                    address = u32(i64(address) - 4)
-                }
-            }
-
-            if L { // Load
+    if(L) { //LDM
+        if(!U) {
+            address -= num_regs + 4
+        }
+        for i: u8 = 0; i < 16; i += 1 {
+            if utils_bit_get16(rlist, i) {
+                reg := Regs(i)
+                address += u32(P) << 2
                 value: u32 = bus_read32(address)
-                if reg == Regs.PC {
-                    // Load PC and force refetch
-                    cpu_reg_set(Regs.PC, value & 0xFFFFFFFE)
-                    refetch = true
-                    // If S set and current mode is not USER/SYSTEM, restore CPSR from SPSR
-                    if S && (CPSR.Mode != Modes.M_USER && CPSR.Mode != Modes.M_SYSTEM) {
-                        CPSR = Flags(cpu_reg_get(Regs.SPSR))
-                    }
+                if(S && !has_PC) {
+                    regs[reg][0] = value
                 } else {
-                    // If S is set and we're in a privileged mode, load into user bank
-                    if S && (CPSR.Mode != Modes.M_USER && CPSR.Mode != Modes.M_SYSTEM) {
-                        regs[reg][0] = value
-                    } else {
-                        cpu_reg_set(reg, value)
-                    }
+                    cpu_reg_set(reg, value)
                 }
-            } else { // Store
-                value := cpu_reg_get(reg)
-                if reg == Regs.PC {
-                    value += 4
-                }
-                bus_write32(address, value)
+                address += u32(!P) << 2
             }
-
-            // Post increment/decrement per transfer
-            if U {
-                if !P {
-                    address = u32(i64(address) + 4)
+        }
+        if(S && has_PC) {
+            CPSR = Flags(cpu_reg_get(Regs.SPSR))
+        }
+    } else { //STM
+        if(!U) {
+            address -= num_regs + 4
+        }
+        for i: u8 = 0; i < 16; i += 1 {
+            if utils_bit_get16(rlist, i) {
+                reg := Regs(i)
+                address += u32(P) << 2
+                value: u32
+                if(S) {
+                    value = cpu_reg_raw(reg, Modes.M_USER)
+                } else {
+                    value = cpu_reg_get(reg)
                 }
-            } else {
-                if !P {
-                    address = u32(i64(address) - 4)
+                if(reg == Rn && W) {
+                    bus_write32(address, origAddr + num_regs)
+                } else {
+                    bus_write32(address, value)
                 }
+                address += u32(!P) << 2
             }
-            cycles += 1
         }
     }
 
-    // Write-back if W is set and Rn isn't in list (or it's a store)
-    if W && (!L || !utils_bit_get16(list, u8(Rn))) {
-        cpu_reg_set(Rn, address)
+    if(W) {
+        if(!L) {
+            cpu_reg_set(Rn, address)
+        } else if(!utils_bit_get16(rlist, u8(Rn))) {
+            cpu_reg_set(Rn, address)
+        }
     }
-
     return cycles
 }
 
