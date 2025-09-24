@@ -241,72 +241,72 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
     switch(cond) {
     case 0x00000000: //EQ - Z set
         if(!CPSR.Z) {
-            return 0
+            return 1
         }
         break
     case 0x10000000: //NE - Z clear
         if(CPSR.Z) {
-            return 0
+            return 1
         }
         break
     case 0x20000000: //CS - C set
         if(!CPSR.C) {
-            return 0
+            return 1
         }
         break
     case 0x30000000: //CC - C clear
         if(CPSR.C) {
-            return 0
+            return 1
         }
         break
     case 0x40000000: //MI - N set
         if(!CPSR.N) {
-            return 0
+            return 1
         }
         break
     case 0x50000000: //PL - N clear
         if(CPSR.N) {
-            return 0
+            return 1
         }
         break
     case 0x60000000: //VS - V set
         if(!CPSR.V) {
-            return 0
+            return 1
         }
         break
     case 0x70000000: //VC - V clear
         if(CPSR.V) {
-            return 0
+            return 1
         }
         break
     case 0x80000000: //HI - C set and Z clear
         if(!(CPSR.C && !CPSR.Z)) {
-            return 0
+            return 1
         }
         break
     case 0x90000000: //LS - C clear OR Z set
         if(!(!CPSR.C || CPSR.Z)) {
-            return 0
+            return 1
         }
         break
     case 0xA0000000: //GE - N == V
         if(CPSR.N != CPSR.V) {
-            return 0
+            return 1
         }
         break
     case 0xB0000000: //LT - N != V
         if(CPSR.N == CPSR.V) {
-            return 0
+            return 1
         }
         break
     case 0xC0000000: //GT - Z clear and (N == V)
         if(!(!CPSR.Z && (CPSR.N == CPSR.V))) {
-            return 0
+            return 1
         }
         break
     case 0xD0000000: //LE - Z set or (N != V)
         if(!(CPSR.Z || (CPSR.N != CPSR.V))) {
-            return 0
+            return 1
         }
         break
     case 0xE0000000: //AL - Always run
@@ -314,7 +314,6 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
     }
 
     id := opcode & 0xE000000
-    //fmt.println("ARM opcode: ", opcode, " id: ", id)
     retval: u32
     switch(id) {
     case 0x0000000:
@@ -574,6 +573,7 @@ cpu_bx :: proc(opcode: u32) -> u32 {
 cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
     op := opcode & 0x1E00000
     S := utils_bit_get32(opcode, 20)
+    R := utils_bit_get32(opcode, 4)
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
     res :u32= 0
@@ -591,7 +591,7 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
         }
     } else {
         Op2 = cpu_reg_shift(opcode, &logic_carry)
-        if(utils_bit_get32(opcode, 4) && Rn == Regs.PC) {
+        if(R && Rn == Regs.PC) {
             Rn_reg += 4
         }
     }
@@ -761,7 +761,9 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
         cpu_reg_set(Rd, res)
         break
     }
-    return 1
+    p := u32(Rd == Regs.PC && (op < 0x1000000 || op > 0x1600000))
+    r := u32(!I && R)
+    return (1 + p) + r + p
 }
 
 cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
@@ -783,8 +785,6 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
         if(utils_bit_get32(opcode, 16) && CPSR.Mode != Modes.M_USER) {
             mask |= 0x000000FF
         }
-        fmt.println(spsr)
-        fmt.println(u32(CPSR.Mode))
         if(spsr) {
             reg &= ~mask
             reg |= (op2 & mask)
@@ -1012,7 +1012,6 @@ cpu_swi :: proc() -> u32 {
 cpu_exec_thumb :: proc(opcode: u16) -> u32 {
     cpu_prefetch16()
     id := opcode & 0xF800
-    //fmt.println("Thumb opcode: ", opcode, " id: ", id)
     retval :u32= 0
 
     switch(id) {
@@ -1849,12 +1848,6 @@ cpu_ror :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
         
     }
     return res
-}
-
-cpu_rol32 :: proc(number: u32, count: u32) -> u32 {
-    lower := number << count
-    upper := number >> (32 - count)
-    return lower | upper
 }
 
 cpu_ror32 :: proc(number: u32, count: u32) -> u32 {
