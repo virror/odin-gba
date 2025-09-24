@@ -85,14 +85,9 @@ cpu_prefetch32 :: proc() {
     pipeline[2] = bus_get32(PC)
     pipeline[0] = pipeline[1]
     pipeline[1] = pipeline[2]
-    PC += 4
 }
 
 cpu_step :: proc() -> u32 {
-    /*if(PC == 0x0800019A) {
-        pause = true
-        debug_draw()
-    }*/
     when !TEST_ENABLE {
         cpu_exec_irq()
 
@@ -237,80 +232,86 @@ cpu_exec_irq :: proc() {
 cpu_exec_arm :: proc(opcode: u32) -> u32 {
     cpu_prefetch32()
     //4 uppermost bits are conditional, if they match, execute, otherwise return
+    exec := true
     cond := opcode & 0xF0000000
     switch(cond) {
     case 0x00000000: //EQ - Z set
         if(!CPSR.Z) {
-            return 1
+            exec = false
         }
         break
     case 0x10000000: //NE - Z clear
         if(CPSR.Z) {
-            return 1
+            exec = false
         }
         break
     case 0x20000000: //CS - C set
         if(!CPSR.C) {
-            return 1
+            exec = false
         }
         break
     case 0x30000000: //CC - C clear
         if(CPSR.C) {
-            return 1
+            exec = false
         }
         break
     case 0x40000000: //MI - N set
         if(!CPSR.N) {
-            return 1
+            exec = false
         }
         break
     case 0x50000000: //PL - N clear
         if(CPSR.N) {
-            return 1
+            exec = false
         }
         break
     case 0x60000000: //VS - V set
         if(!CPSR.V) {
-            return 1
+            exec = false
         }
         break
     case 0x70000000: //VC - V clear
         if(CPSR.V) {
-            return 1
+            exec = false
         }
         break
     case 0x80000000: //HI - C set and Z clear
         if(!(CPSR.C && !CPSR.Z)) {
-            return 1
+            exec = false
         }
         break
     case 0x90000000: //LS - C clear OR Z set
         if(!(!CPSR.C || CPSR.Z)) {
-            return 1
+            exec = false
         }
         break
     case 0xA0000000: //GE - N == V
         if(CPSR.N != CPSR.V) {
-            return 1
+            exec = false
         }
         break
     case 0xB0000000: //LT - N != V
         if(CPSR.N == CPSR.V) {
-            return 1
+            exec = false
         }
         break
     case 0xC0000000: //GT - Z clear and (N == V)
         if(!(!CPSR.Z && (CPSR.N == CPSR.V))) {
-            return 1
+            exec = false
         }
         break
     case 0xD0000000: //LE - Z set or (N != V)
         if(!(CPSR.Z || (CPSR.N != CPSR.V))) {
-            return 1
+            exec = false
         }
         break
     case 0xE0000000: //AL - Always run
         break
+    }
+
+    if(!exec) {
+        PC += 4
+        return 1
     }
 
     id := opcode & 0xE000000
@@ -381,6 +382,7 @@ cpu_mul_mla :: proc(opcode: u32) -> u32 {
     Rs := Regs((opcode & 0xF00) >> 8)
     Rm := Regs(opcode & 0xF)
     res: u32
+    PC += 4
 
     if(A) { //MLA
         res = cpu_reg_get(Rm) * cpu_reg_get(Rs) + cpu_reg_get(Rn)
@@ -406,6 +408,7 @@ cpu_mull_mlal :: proc(opcode: u32) -> u32 {
     RdLo := Regs((opcode & 0xF000) >> 12)
     Rs := Regs((opcode & 0xF00) >> 8)
     Rm := Regs(opcode & 0xF)
+    PC += 4
 
     switch(Op) {
     case 0x000000: //UMULL
@@ -468,7 +471,10 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
     P := utils_bit_get32(opcode, 24)
     U := utils_bit_get32(opcode, 23)
     I := utils_bit_get32(opcode, 22)
-    W := utils_bit_get32(opcode, 21)
+    W := true
+    if(P) {
+        W = utils_bit_get32(opcode, 21)
+    }
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
@@ -488,22 +494,37 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
     }
 
     address = u32(i64(address) + i64(P) * offset) //Pre increment
-
+    PC += 4
+    
     if(L) {
         switch(op) {
         case 0x20: //LDRH
             shift := address & 0x1
-            if(Rn == Regs.PC) {
-                data = u32(bus_read16(address - 4))
-            } else {
-                data = u32(bus_read16(address))
-            }
+            data = u32(bus_read16(address))
             if(shift == 1) {
                 data = cpu_ror32(data, 8)
             }
+            address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
+            if(W && !((Rn == Regs.PC) && (Rd == Regs.PC))) {
+                if(Rn == Regs.PC) {
+                    cpu_reg_set(Rn, address + 4)
+                } else {
+                    cpu_reg_set(Rn, address)
+                }
+        }
             break
         case 0x40: //LDRSB
             data = u32(i32(i8(bus_read8(address))))
+            address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
+            if (W) {
+                if (Rn == Regs.PC) {// writeback fails. technically invalid here
+                    if (Rd != Regs.PC) {
+                        cpu_reg_set(Rn, address + 4)
+                    }
+                } else {
+                    cpu_reg_set(Rn, address)
+                }
+            }
             break
         case 0x60: //LDRSH
             data = u32(i32(i16(bus_read16(address))))
@@ -511,23 +532,31 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
             if(shift == 1) {
                 data = u32(i32(i16(cpu_ror32(data, 8))))
             }
+            address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
+            if (W) {
+                if (Rn == Regs.PC) {// writeback fails. technically invalid here
+                    if (Rd != Regs.PC) {
+                        cpu_reg_set(Rn, address + 4)
+                    }
+                } else {
+                    cpu_reg_set(Rn, address)
+                }
+            }
             break
         }
         cpu_reg_set(Rd, data)
         cycles = 3
     } else { //STRH
         value := cpu_reg_get(Rd)
-        if(Rn == Regs.PC) {
-            bus_write16(address - 4, u16(value))
-        } else {
-            bus_write16(address, u16(value))
-        }
+        bus_write16(address, u16(value))
         cycles = 2
-    }
-    address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
-    if(!P || W) {
-        if((Rn != Rd) || !L) {
-            cpu_reg_set(Rn, address)
+        address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
+        if(W) {
+            if(Rn == Regs.PC) {
+                cpu_reg_set(Rn, address + 4)
+            } else {
+                cpu_reg_set(Rn, address)
+            }
         }
     }
     return cycles
@@ -538,6 +567,7 @@ cpu_swap :: proc(opcode: u32) -> u32 {
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
     Rm := Regs(opcode & 0xF)
+    PC += 4
     Rm_val := cpu_reg_get(Rm)
     address := cpu_reg_get(Rn)
 
@@ -558,9 +588,7 @@ cpu_bx :: proc(opcode: u32) -> u32 {
     Rn := Regs(opcode & 0xF)
     value := cpu_reg_get(Rn)
     thumb := utils_bit_get32(value, 0)
-    if(Rn == Regs.PC) {
-        value -= 4
-    }
+    PC += 4
     if(thumb) {
         CPSR.State = true
         cpu_reg_set(Regs.PC, (value & 0xFFFFFFFE))
@@ -592,12 +620,10 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
     } else {
         Op2 = cpu_reg_shift(opcode, &logic_carry)
         if(R && Rn == Regs.PC) {
-            Rn_reg += 4
+            Rn_reg += 8
         }
     }
-    if(Rn == Regs.PC) {
-        Rn_reg -= 4
-    }
+    PC += 4
 
     switch(op) {
     case 0x0000000: //AND
@@ -817,6 +843,7 @@ cpu_ldr :: proc(opcode: u32, I: bool) -> u32 {
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
     offset: i64
+    PC += 4
     address := cpu_reg_get(Rn)
     logic_carry: bool
 
@@ -893,6 +920,7 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
     Rn := Regs((opcode & 0xF0000) >> 16)
     rlist := u16(opcode & 0xFFFF)
     num_regs := intrinsics.count_ones(u32(rlist)) << 2
+    PC += 4
     address := cpu_reg_get(Rn)
     origAddr := address
     cycles: u32 = 2
@@ -962,10 +990,10 @@ cpu_b_bl :: proc(opcode: u32) -> u32 {
     offset = utils_sign_extend32(offset, 26)
     L := utils_bit_get32(opcode, 24)
     if(L) { //BL
-        cpu_reg_set(Regs.LR, PC - 8)
-        PC = u32(i32(PC) + i32(offset)) - 4
+        cpu_reg_set(Regs.LR, PC - 4)
+        PC = u32(i32(PC) + i32(offset))
     } else { //B
-        PC = u32(i32(PC) + i32(offset)) - 4
+        PC = u32(i32(PC) + i32(offset))
     }
     cpu_refetch32()
     return 3
@@ -1000,7 +1028,8 @@ cpu_mrc_mcr :: proc(opcode: u32) -> u32 {
 cpu_swi :: proc() -> u32 {
     cpsr := CPSR
     CPSR.Mode = Modes.M_SUPERVISOR
-    cpu_reg_set(Regs.LR, PC - 4)
+    cpu_reg_set(Regs.LR, PC)
+    PC += 4
     PC = 0x08
     cpu_reg_set(Regs.SPSR, u32(cpsr))
     CPSR.State = false  //ARM mode
