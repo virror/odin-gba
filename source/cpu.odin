@@ -190,7 +190,7 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
 }
 
 cpu_reg_raw :: proc(reg: Regs, mode: Modes) -> u32 {
-    if reg == Regs.PC {
+    if(reg == Regs.PC) {
         return PC
     } else { 
         return regs[reg][u32(mode) - 16]
@@ -210,7 +210,7 @@ cpu_init_no_bios :: proc() {
 
 cpu_exec_irq :: proc() {
     //Handle interrupts
-    if utils_bit_get16(bus_get16(u32(IOs.IME)), 0) && !CPSR.IRQ { //IEs enabled
+    if(utils_bit_get16(bus_get16(u32(IOs.IME)), 0) && !CPSR.IRQ) { //IEs enabled
         if(bus_get16(u32(IOs.IE)) & bus_get16(u32(IOs.IF)) > 0) { //IE triggered
             CPSR.Mode = Modes.M_IRQ
             if(CPSR.State) {
@@ -327,9 +327,9 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
             } else {
                 retval = cpu_mul_mla(opcode)
             }
-        } else if ((opcode & 0x10000F0) == 0x1000090) {
+        } else if((opcode & 0x10000F0) == 0x1000090) {
             retval = cpu_swap(opcode)
-        } else if (((opcode & 0xF0) == 0xB0) || ((opcode & 0xD0) == 0xD0)) {
+        } else if(((opcode & 0xF0) == 0xB0) || ((opcode & 0xD0) == 0xD0)) {
             retval = cpu_hw_transfer(opcode)
         } else { //ALU reg
             retval = cpu_arm_alu(opcode, false)
@@ -516,9 +516,9 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
         case 0x40: //LDRSB
             data = u32(i32(i8(bus_read8(address))))
             address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
-            if (W) {
-                if (Rn == Regs.PC) {// writeback fails. technically invalid here
-                    if (Rd != Regs.PC) {
+            if(W) {
+                if(Rn == Regs.PC) {// writeback fails. technically invalid here
+                    if(Rd != Regs.PC) {
                         cpu_reg_set(Rn, address + 4)
                     }
                 } else {
@@ -533,9 +533,9 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
                 data = u32(i32(i16(cpu_ror32(data, 8))))
             }
             address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
-            if (W) {
-                if (Rn == Regs.PC) {// writeback fails. technically invalid here
-                    if (Rd != Regs.PC) {
+            if(W) {
+                if(Rn == Regs.PC) {// writeback fails. technically invalid here
+                    if(Rd != Regs.PC) {
                         cpu_reg_set(Rn, address + 4)
                     }
                 } else {
@@ -606,6 +606,7 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
     Rd := Regs((opcode & 0xF000) >> 12)
     res :u32= 0
     Op2: u32
+    //PC += 4
     Rn_reg := cpu_reg_get(Rn)
     logic_carry := CPSR.C
     carry: bool
@@ -619,7 +620,7 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
         }
     } else {
         Op2 = cpu_reg_shift(opcode, &logic_carry)
-        if(R && Rn == Regs.PC) {
+    if(R && Rn == Regs.PC) {
             Rn_reg += 8
         }
     }
@@ -683,7 +684,7 @@ cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
     case 0x0C00000: //SBC
         res = Rn_reg - Op2 + u32(CPSR.C) - 1
         if(S) {
-            CPSR.C = Rn_reg >= u32(i32(Op2))
+            CPSR.C = (Rn_reg >= Op2) & ((Rn_reg - Op2) >= u32(!CPSR.C))
             CPSR.V = bool(((Rn_reg ~ Op2) & (Rn_reg ~ res)) >> 31)
             cpu_setZNArmAlu(Rd, res)
         }
@@ -817,7 +818,7 @@ cpu_msr_mrs :: proc(opcode: u32, op2: u32) {
             cpu_reg_set(Regs.SPSR, reg)
         } else {
             op2 := op2
-            if ((mask & 0xFF) > 0) {
+            if((mask & 0xFF) > 0) {
                 op2 |= 0x10
             }
             reg &= ~mask
@@ -919,68 +920,82 @@ cpu_ldm_stm :: proc(opcode: u32) -> u32 {
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
     rlist := u16(opcode & 0xFFFF)
-    num_regs := intrinsics.count_ones(u32(rlist)) << 2
-    PC += 4
-    address := cpu_reg_get(Rn)
-    origAddr := address
     cycles: u32 = 2
+    rcount: u32
+    first :u8= 20
+    for i :u8= 0; i < 16; i += 1 {
+        if utils_bit_get16(rlist, i) {
+            rcount += 1
+            if (first == 20) {
+                first = i
+            }
+        }
+    }
+    num_regs := rcount << 2 // 4 byte per register
 
-    if(rlist == 0) {
-        num_regs = 64
+    if (rlist == 0) {
         rlist = 0x8000
+        first = 15
+        num_regs = 64
     }
-    has_PC := utils_bit_get16(rlist, 15)
+    move_pc := bool((rlist >> 15) & 1)
 
-    if(L) { //LDM
-        if(!U) {
-            address -= num_regs + 4
-        }
-        for i: u8 = 0; i < 16; i += 1 {
-            if utils_bit_get16(rlist, i) {
-                reg := Regs(i)
-                address += u32(P) << 2
-                value: u32 = bus_read32(address)
-                if(S && !has_PC) {
-                    regs[reg][0] = value
-                } else {
-                    cpu_reg_set(reg, value)
-                }
-                address += u32(!P) << 2
-            }
-        }
-        if(S && has_PC) {
-            CPSR = Flags(cpu_reg_get(Regs.SPSR))
-        }
-    } else { //STM
-        if(!U) {
-            address -= num_regs + 4
-        }
-        for i: u8 = 0; i < 16; i += 1 {
-            if utils_bit_get16(rlist, i) {
-                reg := Regs(i)
-                address += u32(P) << 2
-                value: u32
-                if(S) {
-                    value = cpu_reg_raw(reg, Modes.M_USER)
-                } else {
-                    value = cpu_reg_get(reg)
-                }
-                if(reg == Rn && W) {
-                    bus_write32(address, origAddr + num_regs)
-                } else {
-                    bus_write32(address, value)
-                }
-                address += u32(!P) << 2
-            }
-        }
+    address := cpu_reg_get(Rn)
+    base_addr := address
+
+    mode_switch := S && (!L || !move_pc)
+    old_mode := CPSR.Mode
+    if (mode_switch) {
+        CPSR.Mode = Modes.M_USER
     }
 
-    if(W) {
-        if(!L) {
-            cpu_reg_set(Rn, address)
-        } else if(!utils_bit_get16(rlist, u8(Rn))) {
-            cpu_reg_set(Rn, address)
+    if (!U) {
+        P = !P
+        address -= num_regs
+        base_addr -= num_regs
+    } else {
+        base_addr += num_regs
+    }
+
+    PC += 4
+
+    for i :u8= first; i < 16; i += 1 {
+        if bool(~rlist & (1 << i)) {
+            continue
         }
+        i := Regs(i)
+        if (P) {
+            address += 4
+        }
+
+        if (L) {
+            v := bus_read32(address)
+            if (W && (u8(i) == first)) {
+                cpu_reg_set((Rn), base_addr)
+            }
+            cpu_reg_set((i), v)
+        } else {
+            bus_write32(address, cpu_reg_get(i))
+            if (W && (u8(i) == first)) {
+                cpu_reg_set((Rn), base_addr)
+            }
+        }
+
+        if (!P) {
+            address += 4
+        }
+        cycles += 1
+    }
+    if (L) {
+        if (move_pc) {
+            if (S) {
+                CPSR |= Flags(0x10)
+                CPSR = Flags(cpu_reg_get(Regs.SPSR))
+            }
+        }
+    }
+    if (mode_switch) {
+        CPSR.Mode = old_mode
     }
     return cycles
 }
@@ -1268,7 +1283,7 @@ cpu_hi_reg :: proc(opcode: u16) -> u32 {
         value := cpu_reg_get(Rs + H2)
         thumb := utils_bit_get32(value, 0)
         CPSR.State = thumb
-        if thumb {
+        if(thumb) {
             cpu_reg_set(Regs.PC, (value & 0xFFFFFFFE))
         } else {
             cpu_reg_set(Regs.PC, value)
@@ -1415,7 +1430,7 @@ cpu_ls_ext :: proc(opcode: u16) -> u32 {
         shift := address & 0x1
         address2 := u32(address & ~shift)
         data := u32(bus_read16(address2))
-        if shift == 1 {
+        if(shift == 1) {
             data = cpu_ror32(data, 8)
         }
         cpu_reg_set(Rd, data)
@@ -1817,7 +1832,7 @@ cpu_lsl :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
 cpu_lsr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
-    if (shift == 0) {
+    if(shift == 0) {
         if(!CPSR.State) {
             logic_carry^ = (value & 0x80000000) > 0
             res = 0
@@ -1834,7 +1849,7 @@ cpu_lsr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
 cpu_asr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
-    if (shift == 0) {
+    if(shift == 0) {
         if(!CPSR.State) {
             logic_carry^ = (value & 0x80000000) > 0
             if(logic_carry^) {
