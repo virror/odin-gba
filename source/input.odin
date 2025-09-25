@@ -15,7 +15,12 @@ Keys :: enum {
     L,
 }
 
-key_state :u16= 0x03FF
+key_state: u16
+
+input_init :: proc() {
+    key_state = 0x03FF
+    bus_set16(u32(IOs.KEYINPUT), key_state)
+}
 
 input_set_key :: proc(key: Keys) {
     key_state = utils_bit_clear16(key_state, u8(key))
