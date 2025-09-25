@@ -225,7 +225,7 @@ bus_write32 :: proc(addr: u32, value: u32) {
 }
 
 bus_irq_set :: proc(bit: u8) {
-    mem[IOs.IF] = utils_bit_set8(mem[IOs.IF], bit)
+    mem[IO_IF] = utils_bit_set8(mem[IO_IF], bit)
 }
 
 bus_save_ram :: proc() {
@@ -255,107 +255,107 @@ bus_load_ram :: proc() {
 }
 
 bus_handle_io :: proc(addr: u32, value: u8) -> bool {
-    #partial switch(IOs(addr)) {
+    switch(addr) {
     //Interrupts - Writing one resets the flag
-    case IOs.IF, IOs.IF + IOs(1):
+    case IO_IF, IO_IF + 1:
         mem[addr] = (~value) & mem[addr]
         return false
     //Timers
-    case IOs.TM0CNT_L:
+    case IO_TM0CNT_L:
         tmr_set_start_time(&timer0, value, false)
         return false
-    case IOs.TM0CNT_L + IOs(1):
+    case IO_TM0CNT_L + 1:
         tmr_set_start_time(&timer0, value, true)
         return false
-    case IOs.TM0CNT_H:
+    case IO_TM0CNT_H:
         tmr_set_control(&timer0, value)
         break
-    case IOs.TM1CNT_L:
+    case IO_TM1CNT_L:
         tmr_set_start_time(&timer1, value, false)
         return false
-    case IOs.TM1CNT_L + IOs(1):
+    case IO_TM1CNT_L + 1:
         tmr_set_start_time(&timer1, value, true)
         return false
-    case IOs.TM1CNT_H:
+    case IO_TM1CNT_H:
         tmr_set_control(&timer1, value)
         break
-    case IOs.TM2CNT_L:
+    case IO_TM2CNT_L:
         tmr_set_start_time(&timer2, value, false)
         return false
-    case IOs.TM2CNT_L + IOs(1):
+    case IO_TM2CNT_L + 1:
         tmr_set_start_time(&timer2, value, true)
         return false
-    case IOs.TM2CNT_H:
+    case IO_TM2CNT_H:
         tmr_set_control(&timer2, value)
         break
-    case IOs.TM3CNT_L:
+    case IO_TM3CNT_L:
         tmr_set_start_time(&timer3, value, false)
         return false
-    case IOs.TM3CNT_L + IOs(1):
+    case IO_TM3CNT_L + 1:
         tmr_set_start_time(&timer3, value, true)
         return false
-    case IOs.TM3CNT_H:
+    case IO_TM3CNT_H:
         tmr_set_control(&timer3, value)
         break
-    case IOs.DMA0CNT_H + IOs(1):
+    case IO_DMA0CNT_H + 1:
         mem[addr] = value
         dma_set_data(&dma0)
         return false
-    case IOs.DMA1CNT_H + IOs(1):
+    case IO_DMA1CNT_H + 1:
         mem[addr] = value
         dma_set_data(&dma1)
         return false
-    case IOs.DMA2CNT_H + IOs(1):
+    case IO_DMA2CNT_H + 1:
         mem[addr] = value
         dma_set_data(&dma2)
         return false
-    case IOs.DMA3CNT_H + IOs(1):
+    case IO_DMA3CNT_H + 1:
         mem[addr] = value
         dma_set_data(&dma3)
         return false
-    case IOs.HALTCNT:
+    case IO_HALTCNT:
         if(utils_bit_get16(u16(value), 7)) {
             stop = true
         } else {
             halt = true
         }
         return false
-    case IOs.SOUND1CNT_H: // -> length
+    case IO_SOUND1CNT_H: // -> length
         apu_load_length_counter_square1(value & 0x3f)
         mem[addr] = value // TODO: remove?
         break
-    case IOs.SOUND1CNT_X + IOs(1): // -> trigger
+    case IO_SOUND1CNT_X + 1: // -> trigger
         if (value & 0x80) > 1 {
             apu_trigger_square1()
         }
         mem[addr] = value
         break
-    case IOs.SOUND2CNT_L: // -> length
+    case IO_SOUND2CNT_L: // -> length
         apu_load_length_counter_square2(value & 0x3f)
         // TODO: read ones?
         break
-    case IOs.SOUND2CNT_H + IOs(1): // -> trigger
+    case IO_SOUND2CNT_H + 1: // -> trigger
         if (value & 0x80) > 1 {
             apu_trigger_square2()
         }
         break
-    case IOs.SOUND4CNT_L: // -> length
+    case IO_SOUND4CNT_L: // -> length
         apu_load_length_counter_noise(value & 0x3f)
         // TODO: read ones?
         break
-    case IOs.SOUND4CNT_H + IOs(1): // -> trigger
+    case IO_SOUND4CNT_H + 1: // -> trigger
         if (value & 0x80) > 0 {
             apu_trigger_noise()
         }
         break
-    case IOs.DISPSTAT:
-        dispstat := mem[IOs.DISPSTAT]
+    case IO_DISPSTAT:
+        dispstat := mem[IO_DISPSTAT]
         dispstat &= 0x07
         value1 := value & 0xF8
         dispstat |= value1
         //TODO: Should save value and return 0?
         break
-    case IOs.SOUNDCNT_H:
+    case IO_SOUNDCNT_H:
         // FIFO A reset
         if (value & 0x08) > 1 {
             apu_reset_fifo_a()
@@ -366,22 +366,22 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
         }
         break
     // Last byte of FIFO A
-    case IOs.FIFO_A_H + IOs(1):
-        apu_load_fifo_a(mem[IOs.FIFO_A_L])
-        apu_load_fifo_a(mem[IOs.FIFO_A_L + IOs(1)])
-        apu_load_fifo_a(mem[IOs.FIFO_A_H])
-        apu_load_fifo_a(mem[IOs.FIFO_A_H + IOs(1)])
+    case IO_FIFO_A_H + 1:
+        apu_load_fifo_a(mem[IO_FIFO_A_L])
+        apu_load_fifo_a(mem[IO_FIFO_A_L + 1])
+        apu_load_fifo_a(mem[IO_FIFO_A_H])
+        apu_load_fifo_a(mem[IO_FIFO_A_H + 1])
         break
     // Last byte of FIFO B
-    case IOs.FIFO_B_H + IOs(1):
-        apu_load_fifo_b(mem[IOs.FIFO_B_L])
-        apu_load_fifo_b(mem[IOs.FIFO_B_L + IOs(1)])
-        apu_load_fifo_b(mem[IOs.FIFO_B_H])
-        apu_load_fifo_b(mem[IOs.FIFO_B_H + IOs(1)])
+    case IO_FIFO_B_H + 1:
+        apu_load_fifo_b(mem[IO_FIFO_B_L])
+        apu_load_fifo_b(mem[IO_FIFO_B_L + 1])
+        apu_load_fifo_b(mem[IO_FIFO_B_H])
+        apu_load_fifo_b(mem[IO_FIFO_B_H + 1])
         break
-    case IOs.KEYINPUT,
-         IOs.KEYINPUT + IOs(1),
-         IOs.VCOUNT:
+    case IO_KEYINPUT,
+         IO_KEYINPUT + 1,
+         IO_VCOUNT:
         return false // Read only
     }
     return true

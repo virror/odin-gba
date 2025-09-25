@@ -19,24 +19,24 @@ key_state: u16
 
 input_init :: proc() {
     key_state = 0x03FF
-    bus_set16(u32(IOs.KEYINPUT), key_state)
+    bus_set16(IO_KEYINPUT, key_state)
 }
 
 input_set_key :: proc(key: Keys) {
     key_state = utils_bit_clear16(key_state, u8(key))
-    bus_set16(u32(IOs.KEYINPUT), key_state)
+    bus_set16(IO_KEYINPUT, key_state)
     input_handle_irq()
 }
 
 input_clear_key :: proc(key: Keys) {
     key_state = utils_bit_set16(key_state, u8(key))
-    bus_set16(u32(IOs.KEYINPUT), key_state)
+    bus_set16(IO_KEYINPUT, key_state)
     input_handle_irq()
 }
 
 input_handle_irq :: proc() {
     keys := key_state
-    key_cnt := bus_get16(u32(IOs.KEYCNT))
+    key_cnt := bus_get16(IO_KEYCNT)
     if(utils_bit_get16(key_cnt, 14)) {
         key_int := key_cnt & 0x03FF
         keys = (~keys) & 0x03FF

@@ -22,10 +22,10 @@ Dma :: struct {
 }
 
 dma_init :: proc(dma: ^Dma, index: u32) {
-    dma.src_reg = u32(IOs.DMA0SAD) + index * 12
-    dma.dst_reg = u32(IOs.DMA0DAD) + index * 12
-    dma.cnt_reg = u32(IOs.DMA0CNT_L) + index * 12
-    dma.ctrl_reg = u32(IOs.DMA0CNT_H) + index * 12
+    dma.src_reg = IO_DMA0SAD + index * 12
+    dma.dst_reg = IO_DMA0DAD + index * 12
+    dma.cnt_reg = IO_DMA0CNT_L + index * 12
+    dma.ctrl_reg = IO_DMA0CNT_H + index * 12
 }
 
 dma_set_data :: proc(dma: ^Dma) {

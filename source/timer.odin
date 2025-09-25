@@ -65,9 +65,9 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
             tmr_step_count_up(timer.count_up_timer, 1)
         }
         if(timer.irq) {
-            iflags := bus_get16(u32(IOs.IF))
+            iflags := bus_get16(IO_IF)
             iflags = utils_bit_set16(iflags, timer.index + 3)
-            bus_set16(u32(IOs.IF), iflags)
+            bus_set16(IO_IF, iflags)
         }
         /*if(apu && apu->ds_a_timer() == timer.index) {
             apu->step_ds_a()
@@ -77,7 +77,7 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
         }*/
     }
     //*(uint16_t *)memory = (uint16_t)counter //TMxCNT_L
-    bus_set16(u32(IOs.TM0CNT_L) + u32(timer.index * 4), u16(timer.counter))
+    bus_set16(IO_TM0CNT_L + u32(timer.index * 4), u16(timer.counter))
 }
 
 tmr_set_start_time :: proc(timer: ^Timer, value: u8, high_byte: bool) {

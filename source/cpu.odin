@@ -210,8 +210,8 @@ cpu_init_no_bios :: proc() {
 
 cpu_exec_irq :: proc() {
     //Handle interrupts
-    if(utils_bit_get16(bus_get16(u32(IOs.IME)), 0) && !CPSR.IRQ) { //IEs enabled
-        if(bus_get16(u32(IOs.IE)) & bus_get16(u32(IOs.IF)) > 0) { //IE triggered
+    if(utils_bit_get16(bus_get16(IO_IME), 0) && !CPSR.IRQ) { //IEs enabled
+        if(bus_get16(IO_IE) & bus_get16(IO_IF) > 0) { //IE triggered
             CPSR.Mode = Modes.M_IRQ
             if(CPSR.State) {
                 cpu_reg_set(Regs.LR, PC + 2) //Store PC

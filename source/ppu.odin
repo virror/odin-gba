@@ -24,7 +24,7 @@ screen_buffer: [WIN_WIDTH * WIN_WIDTH]u16
 ppu_step :: proc(cycles: u32) -> bool {
     ready_draw: bool
     cycle_count += cycles
-    dispstat = bus_get16(u32(IOs.DISPSTAT))
+    dispstat = bus_get16(IO_DISPSTAT)
 
     if(stop) {
         return false
@@ -43,7 +43,7 @@ ppu_step :: proc(cycles: u32) -> bool {
             if(utils_bit_get16(dispstat, 4)) {
                 bus_irq_set(1)
             }
-            dispcnt := bus_get16(u32(IOs.DISPCNT))
+            dispcnt := bus_get16(IO_DISPCNT)
             mode := dispcnt & 0x7
             switch(mode) {
             case 0:
@@ -112,7 +112,7 @@ ppu_step :: proc(cycles: u32) -> bool {
         }
         break
     }
-    bus_set16(u32(IOs.DISPSTAT), dispstat)
+    bus_set16(IO_DISPSTAT, dispstat)
     return ready_draw
 }
 
@@ -127,7 +127,7 @@ ppu_set_line :: proc(count: u16) {
     } else {
         dispstat = utils_bit_clear16(dispstat, 2)
     }
-    bus_set16(u32(IOs.VCOUNT), line_count)
+    bus_set16(IO_VCOUNT, line_count)
 }
 
 ppu_draw_mode_0 :: proc(dispcnt: u16) {
@@ -209,7 +209,7 @@ ppu_draw_mode_3 :: proc() {
 ppu_draw_mode_4 :: proc(dispcnt: u16) {
     start := VRAM
     if(utils_bit_get16(dispcnt, 4)) {
-        start = VRAM    //TODO: Correct??
+        start += 0xA000    //TODO: Correct??
     }
     for i :u16= 0; i < 240; i += 1 {
         pixel := u32((line_count * 240) + i)
@@ -224,15 +224,23 @@ ppu_draw_mode_4 :: proc(dispcnt: u16) {
 }
 
 ppu_draw_mode_5 :: proc(dispcnt: u16) {
-    //TODO: Implement screen shift and x/y limit properly
+    //TODO: Implement screen shift?
     start := VRAM
     if(utils_bit_get16(dispcnt, 4)) {
-        start = VRAM    //TODO: Correct??
+        start += 0xA000
     }
-    for i :u16= 0; i < 160; i += 1 {
-        pixel := u32((line_count * 160) + i)
-        data := bus_get16(start + (pixel * 2))
-        screen_buffer[pixel] = data
+    for i :u16= 0; i < 240; i += 1 {
+        pixel := u32((line_count * 240) + i)
+        if(line_count >= 128) {
+            screen_buffer[pixel] = 0x0
+            continue
+        } else if(i >= 160) {
+            screen_buffer[pixel] = 0x0
+            continue
+        } else {
+            data := bus_get16(start + (pixel * 2))
+            screen_buffer[pixel] = data
+        }
     }
 }
 
@@ -242,24 +250,24 @@ ppu_draw_tiles :: proc(bg_index: u32) {
     bgvofs: u16
     switch(bg_index) {
     case 0:
-        bgcnt = bus_get16(u32(IOs.BG0CNT))
-        bghofs = bus_get16(u32(IOs.BG0HOFS))
-        bgvofs = bus_get16(u32(IOs.BG0VOFS))
+        bgcnt = bus_get16(IO_BG0CNT)
+        bghofs = bus_get16(IO_BG0HOFS)
+        bgvofs = bus_get16(IO_BG0VOFS)
         break
     case 1:
-        bgcnt = bus_get16(u32(IOs.BG1CNT))
-        bghofs = bus_get16(u32(IOs.BG1HOFS))
-        bgvofs = bus_get16(u32(IOs.BG1VOFS))
+        bgcnt = bus_get16(IO_BG1CNT)
+        bghofs = bus_get16(IO_BG1HOFS)
+        bgvofs = bus_get16(IO_BG1VOFS)
         break
     case 2:
-        bgcnt = bus_get16(u32(IOs.BG2CNT))
-        bghofs = bus_get16(u32(IOs.BG2HOFS))
-        bgvofs = bus_get16(u32(IOs.BG2VOFS))
+        bgcnt = bus_get16(IO_BG2CNT)
+        bghofs = bus_get16(IO_BG2HOFS)
+        bgvofs = bus_get16(IO_BG2VOFS)
         break
     case 3:
-        bgcnt = bus_get16(u32(IOs.BG3CNT))
-        bghofs = bus_get16(u32(IOs.BG3HOFS))
-        bgvofs = bus_get16(u32(IOs.BG3VOFS))
+        bgcnt = bus_get16(IO_BG3CNT)
+        bghofs = bus_get16(IO_BG3HOFS)
+        bgvofs = bus_get16(IO_BG3VOFS)
         break
     }
 
