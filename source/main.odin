@@ -10,8 +10,8 @@ WIN_WIDTH :: 240
 WIN_HEIGHT :: 160
 WIN_SCALE :: 2
 
-START_BIOS :: true
-ROM_PATH :: "tests/brin_demo.gba"
+START_BIOS :: false
+ROM_PATH :: "tests/armwrestler.gba"
 
 @(private="file")
 window: ^sdl.Window
@@ -88,6 +88,7 @@ main :: proc() {
     dma_init(&dma1, 1)
     dma_init(&dma2, 2)
     dma_init(&dma3, 3)
+    input_init()
 
     when TEST_ENABLE {
         test_all()
