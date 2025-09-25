@@ -15,22 +15,22 @@ Keys :: enum {
     L,
 }
 
+key_state :u16= 0x03FF
+
 input_set_key :: proc(key: Keys) {
-    keys := bus_get16(u32(IOs.KEYINPUT))
-    keys = utils_bit_clear16(keys, u8(key))
-    bus_set16(u32(IOs.KEYINPUT), keys)
-    input_handle_irq(keys)
+    key_state = utils_bit_clear16(key_state, u8(key))
+    bus_set16(u32(IOs.KEYINPUT), key_state)
+    input_handle_irq()
 }
 
 input_clear_key :: proc(key: Keys) {
-    keys := bus_get16(u32(IOs.KEYINPUT))
-    keys = utils_bit_set16(keys, u8(key))
-    bus_set16(u32(IOs.KEYINPUT), keys)
-    input_handle_irq(keys)
+    key_state = utils_bit_set16(key_state, u8(key))
+    bus_set16(u32(IOs.KEYINPUT), key_state)
+    input_handle_irq()
 }
 
-input_handle_irq :: proc(keys: u16) {
-    keys := keys
+input_handle_irq :: proc() {
+    keys := key_state
     key_cnt := bus_get16(u32(IOs.KEYCNT))
     if(utils_bit_get16(key_cnt, 14)) {
         key_int := key_cnt & 0x03FF

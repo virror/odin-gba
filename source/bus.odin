@@ -379,9 +379,9 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
         apu_load_fifo_b(mem[IOs.FIFO_B_H])
         apu_load_fifo_b(mem[IOs.FIFO_B_H + IOs(1)])
         break
-    case IOs.KEYINPUT:
-    case IOs.KEYINPUT + IOs(1):
-    case IOs.VCOUNT:
+    case IOs.KEYINPUT,
+         IOs.KEYINPUT + IOs(1),
+         IOs.VCOUNT:
         return false // Read only
     }
     return true
