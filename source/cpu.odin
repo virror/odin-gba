@@ -838,51 +838,62 @@ cpu_ldr :: proc(opcode: u32, I: bool) -> u32 {
     P := i64(utils_bit_get32(opcode, 24))
     U := utils_bit_get32(opcode, 23)
     B := utils_bit_get32(opcode, 22)
-    W := utils_bit_get32(opcode, 21)
+    W := true
+    if(bool(P)) {
+        W = utils_bit_get32(opcode, 21)
+    }
     L := utils_bit_get32(opcode, 20)
     Rn := Regs((opcode & 0xF0000) >> 16)
     Rd := Regs((opcode & 0xF000) >> 12)
     offset: i64
     address := cpu_reg_get(Rn)
-    PC += 4
     logic_carry: bool
+    data: u32
 
     if(I) {
-        offset = i64(i32(cpu_reg_shift(opcode, &logic_carry, true))) //Carry not used
+        offset = i64(cpu_reg_shift(opcode, &logic_carry)) //Carry not used
     } else {
         offset = i64(opcode & 0xFFF)
     }
     if(!U) {
         offset = -offset
     }
+    PC += 4
     address = u32(i64(address) + P * offset) //Pre increment
     if(L) {
         if(B) { //LDRB
-            cpu_reg_set(Rd, u32(bus_read8(address)))
-            address = u32(i64(address) + (1 - P) * offset) //Post increment
+            data = u32(bus_read8(address))
         } else { //LDR
             shift := address & 0x3
-            data := bus_read32(address)
-            data = cpu_ror32(data, shift * 8)
-            cpu_reg_set(Rd, data)
-            address = u32(i64(address) + (1 - P) * offset) //Post increment
+            address2 := u32(address & ~shift)
+            data = bus_read32(address2)
+            if(shift > 0) {
+                data = cpu_ror32(data, shift * 8)
+            }
         }
+        address = u32(i64(address) + (1 - P) * offset) //Post increment
+        if(W) {
+            if(Rn == Regs.PC) {
+                cpu_reg_set(Rn, address + 4)
+            } else {
+                cpu_reg_set(Rn, address)
+            }
+        }
+        cpu_reg_set(Rd, data)
     } else {
         if(B) { //STRB
             bus_write8(address, u8(cpu_reg_get(Rd)))
-            address = u32(i64(address) + (1 - P) * offset) //Post increment
         } else { //STR
             value := cpu_reg_get(Rd)
             bus_write32(address, value)
-            address = u32(i64(address) + (1 - P) * offset) //Post increment
         }
-    }
-    if(W || !bool(P)) {
-        if(Rn != Rd || !L) {
+        address = u32(i64(address) + (1 - P) * offset) //Post increment
+        if(W) {
             if(Rn == Regs.PC) {
-                address += 4
+                cpu_reg_set(Rn, address + 4)
+            } else {
+                cpu_reg_set(Rn, address)
             }
-            cpu_reg_set(Rn, address)
         }
     }
     return 3
@@ -1754,7 +1765,7 @@ cpu_setZNArmAlu :: proc(Rd: Regs, res: u32) {
     }
 }
 
-cpu_reg_shift :: proc(opcode: u32, logic_carry: ^bool, apa: bool = false) -> u32 {
+cpu_reg_shift :: proc(opcode: u32, logic_carry: ^bool) -> u32 {
     shift_type := opcode & 0x60
     shift_reg := utils_bit_get32(opcode, 4)
     Rm := Regs(opcode & 0xF)
@@ -1774,9 +1785,6 @@ cpu_reg_shift :: proc(opcode: u32, logic_carry: ^bool, apa: bool = false) -> u32
         }
     } else {
         shift = (opcode & 0xF80) >> 7
-        if(Rm == Regs.PC && apa) {
-            Rm_reg -= 4
-        }
     }
 
     switch(shift_type) {
