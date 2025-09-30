@@ -35,7 +35,7 @@ Modes :: enum u8 {
 
 Flags :: bit_field u32 {
     Mode: Modes   | 5,
-    State: bool   | 1,
+    Thumb: bool   | 1,
     FIQ: bool     | 1,
     IRQ: bool     | 1,
     Reserved: u32 | 20,
@@ -61,11 +61,9 @@ cpu_init :: proc() {
 }
 
 cpu_refetch16 :: proc() {
-    PC += 2
     pipeline[0] = u32(bus_read16(PC & 0xFFFFFFFE))
-    PC += 2
     pipeline[1] = u32(bus_read16(PC & 0xFFFFFFFE))
-    PC += 2
+    PC += 4
 }
 
 cpu_refetch32 :: proc() {
@@ -98,14 +96,14 @@ cpu_step :: proc() -> u32 {
 
     //Execute instruction
     cycles: u32
-    if(CPSR.State) {
+    if(CPSR.Thumb) {
         cycles = cpu_exec_thumb(u16(pipeline[0]))
     } else {
         cycles = cpu_exec_arm(pipeline[0])
     }
     if(refetch) {
         refetch = false
-        if(CPSR.State) {
+        if(CPSR.Thumb) {
             cpu_refetch16()
         } else {
             cpu_refetch32()
@@ -131,7 +129,7 @@ cpu_reg_get :: proc(reg: Regs) -> u32 {
             return regs[reg][u32(mode) - 16]
         }
     case Regs.PC:
-        if(CPSR.State) {
+        if(CPSR.Thumb) {
             return PC - 2
         } else {
             return PC
@@ -170,8 +168,8 @@ cpu_reg_set :: proc(reg: Regs, value: u32) {
             }
         }
     case Regs.PC:
-        if(CPSR.State) {
-            PC = (value - 2) & 0xFFFFFFFE
+        if(CPSR.Thumb) {
+            PC = value & 0xFFFFFFFE
             refetch = true
         } else {
             PC = value
@@ -213,14 +211,14 @@ cpu_exec_irq :: proc() {
     if(utils_bit_get16(bus_get16(IO_IME), 0) && !CPSR.IRQ) { //IEs enabled
         if(bus_get16(IO_IE) & bus_get16(IO_IF) > 0) { //IE triggered
             CPSR.Mode = Modes.M_IRQ
-            if(CPSR.State) {
+            if(CPSR.Thumb) {
                 cpu_reg_set(Regs.LR, PC + 2) //Store PC
             } else {
                 cpu_reg_set(Regs.LR, PC) //Store PC
             }
             PC = 0x18 //Go to interurupt handler
             cpu_reg_set(Regs.SPSR, u32(CPSR))
-            CPSR.State = false
+            CPSR.Thumb = false
             CPSR.IRQ = true
 
             halt = false
@@ -590,7 +588,7 @@ cpu_bx :: proc(opcode: u32) -> u32 {
     thumb := utils_bit_get32(value, 0)
     PC += 4
     if(thumb) {
-        CPSR.State = true
+        CPSR.Thumb = true
         cpu_reg_set(Regs.PC, (value & 0xFFFFFFFE))
     } else {
         cpu_reg_set(Regs.PC, value)
@@ -1003,7 +1001,7 @@ cpu_unknown_irq :: proc() {
     cpu_reg_set(Regs.LR, PC - 4)
     PC = 0x04
     cpu_reg_set(Regs.SPSR, u32(cpsr))
-    CPSR.State = false  //ARM mode
+    CPSR.Thumb = false  //ARM mode
     CPSR.IRQ = true     //Disable interrupts
     cpu_refetch32()
 }
@@ -1030,7 +1028,7 @@ cpu_swi :: proc() -> u32 {
     PC += 4
     PC = 0x08
     cpu_reg_set(Regs.SPSR, u32(cpsr))
-    CPSR.State = false  //ARM mode
+    CPSR.Thumb = false  //ARM mode
     CPSR.IRQ = true     //Disable interrupts
     cpu_refetch32()
     return 3
@@ -1265,7 +1263,7 @@ cpu_hi_reg :: proc(opcode: u16) -> u32 {
     case 3: //BX
         value := cpu_reg_get(Rs + H2)
         thumb := utils_bit_get32(value, 0)
-        CPSR.State = thumb
+        CPSR.Thumb = thumb
         if(thumb) {
             cpu_reg_set(Regs.PC, (value & 0xFFFFFFFE))
         } else {
@@ -1574,7 +1572,7 @@ cpu_push_pop :: proc(opcode: u16) -> u32 {
         if(R || imm == 0) { //POP PC
             pc := bus_read32(sp)
             if(imm == 0 && !R) {
-                PC = pc - 2
+                PC = pc
                 refetch = true
                 sp += 60
             } else {
@@ -1645,7 +1643,6 @@ cpu_ls_mp :: proc(opcode: u16) -> u32 {
     if(rlist == 0) {
         if(L) {
             PC = bus_read32(addr)
-            PC -= 2
             refetch = true
         } else {
             bus_write32(addr, PC)
@@ -1711,7 +1708,7 @@ cpu_b_cond :: proc(opcode: u16) -> u32{
     case 15: //SWI
         cpu_reg_set(Regs.SPSR, u32(CPSR))
         CPSR.Mode = Modes.M_SUPERVISOR
-        CPSR.State = false      //ARM mode
+        CPSR.Thumb = false      //ARM mode
         CPSR.IRQ = true         //Disable interrupts
         cpu_reg_set(Regs.LR, PC - 2)
         cpu_reg_set(Regs.PC, 0x08)
@@ -1816,7 +1813,7 @@ cpu_lsr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
     if(shift == 0) {
-        if(!CPSR.State) {
+        if(!CPSR.Thumb) {
             logic_carry^ = (value & 0x80000000) > 0
             res = 0
         } else {
@@ -1833,7 +1830,7 @@ cpu_asr :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
     if(shift == 0) {
-        if(!CPSR.State) {
+        if(!CPSR.Thumb) {
             logic_carry^ = (value & 0x80000000) > 0
             if(logic_carry^) {
                 res = 0xFFFFFFFF
@@ -1857,7 +1854,7 @@ cpu_ror :: proc(shift: u32, value: u32, logic_carry: ^bool) -> u32 {
     res: u32
 
     if(shift == 0) {
-        if(!CPSR.State) {
+        if(!CPSR.Thumb) {
             res = (value >> 1) | (u32(CPSR.C) << 31)
             logic_carry^ = bool(value & 0x1)
         } else {

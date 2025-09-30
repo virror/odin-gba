@@ -55,7 +55,7 @@ debug_draw :: proc() {
     debug_draw_flag("!FIQ ", 6, 350, 135)
 
 
-    state :cstring= CPSR.State ? "THUMB" : "ARM"
+    state :cstring= CPSR.Thumb ? "THUMB" : "ARM"
     line0 := fmt.caprintf("%s %s", "State: ", state)
     debug_text(line0, 350, 160, {230, 230, 230, 230})
 
@@ -89,7 +89,7 @@ debug_draw :: proc() {
     line := fmt.caprintf("%s %s", "Mode: ", mode_name)
     debug_text(line, 10, 185, {230, 230, 230, 230}) //TODO: Add MODE before string
 
-    if(CPSR.State) { //THUMB
+    if(CPSR.Thumb) { //THUMB
         debug_draw_op_thumb("->", 0, 10, 510)
         debug_draw_op_thumb("  ", 1, 10, 535)
     } else {

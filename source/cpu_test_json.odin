@@ -161,8 +161,6 @@ test_run :: proc(json_data: Json_data) {
 
     //Execute instruction
     cpu_step()
-    //fmt.println(cycles)
-    //fmt.println(utils_bit_get32(json_data.initial.CPSR, 5))
 
     //Compare results
     if regs[0][0] != json_data.final.R[0] {
@@ -221,7 +219,9 @@ test_run :: proc(json_data: Json_data) {
     if pipeline[0] != json_data.final.pipeline[0] {
         error_string = fmt.aprintf("Fail: pipeline 0 is %d, should be %d", pipeline[0], json_data.final.pipeline[0])
     }
-    //TODO: Test cycle count as well!
+    /*if cycle != transactions[transaction_cnt-1].cycle {
+        error_string = fmt.aprintf("Fail: cycle is %d, should be %d", cycle, transactions[transaction_cnt-1].cycle)
+    }*/
     if error_string != "" {
         when TEST_BREAK_ERROR {
             fmt.println(json_data)
@@ -275,7 +275,7 @@ test_write32 :: proc(addr: u32, value: u32) {
 }
 
 test_get_mul :: proc(opcode: u32) -> bool {
-    if(CPSR.State) {
+    if(CPSR.Thumb) {
         opcode := u16(opcode)
         id := opcode & 0xF800
         if(id == 0x4000) {
