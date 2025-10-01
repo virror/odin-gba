@@ -109,30 +109,14 @@ M_SYSTEM = 15,
 @(private="file")
 test_run :: proc(json_data: Json_data) {
     error_string: string
-    regs[0][0] = json_data.initial.R[0]
-    regs[1][0] = json_data.initial.R[1]
-    regs[2][0] = json_data.initial.R[2]
-    regs[3][0] = json_data.initial.R[3]
-    regs[4][0] = json_data.initial.R[4]
-    regs[5][0] = json_data.initial.R[5]
-    regs[6][0] = json_data.initial.R[6]
-    regs[7][0] = json_data.initial.R[7]
-    regs[8][0] = json_data.initial.R[8]
-    regs[9][0] = json_data.initial.R[9]
-    regs[10][0] = json_data.initial.R[10]
-    regs[11][0] = json_data.initial.R[11]
-    regs[12][0] = json_data.initial.R[12]
-    regs[13][0] = json_data.initial.R[13]
-    regs[14][0] = json_data.initial.R[14]
+    for i in 0..=14 {
+        regs[i][0] = json_data.initial.R[i]
+    }
     PC = json_data.initial.R[15]
 
-    regs[8][1] = json_data.initial.R_fiq[0]
-    regs[9][1] = json_data.initial.R_fiq[1]
-    regs[10][1] = json_data.initial.R_fiq[2]
-    regs[11][1] = json_data.initial.R_fiq[3]
-    regs[12][1] = json_data.initial.R_fiq[4]
-    regs[13][1] = json_data.initial.R_fiq[5]
-    regs[14][1] = json_data.initial.R_fiq[6]
+    for i in 8..=14 {
+        regs[i][1] = json_data.initial.R_fiq[i - 8]
+    }
 
     regs[13][7] = json_data.initial.R_abt[0]
     regs[14][7] = json_data.initial.R_abt[1]
@@ -163,61 +147,80 @@ test_run :: proc(json_data: Json_data) {
     cpu_step()
 
     //Compare results
-    if regs[0][0] != json_data.final.R[0] {
-        error_string = fmt.aprintf("Fail: R0 is %d, should be %d", regs[0][0], json_data.final.R[0])
+    for i in 0..=7 {
+        if regs[i][0] != json_data.final.R[i] {
+            error_string = fmt.aprintf("Fail: R%d is %d, should be %d", i, regs[i][0], json_data.final.R[i])
+        }
     }
-    if regs[1][0] != json_data.final.R[1] {
-        error_string = fmt.aprintf("Fail: R1 is %d, should be %d", regs[1][0], json_data.final.R[1])
-    }
-    if regs[2][0] != json_data.final.R[2] {
-        error_string = fmt.aprintf("Fail: R2 is %d, should be %d", regs[2][0], json_data.final.R[2])
-    }
-    if regs[3][0] != json_data.final.R[3] {
-        error_string = fmt.aprintf("Fail: R3 is %d, should be %d", regs[3][0], json_data.final.R[3])
-    }
-    if regs[4][0] != json_data.final.R[4] {
-        error_string = fmt.aprintf("Fail: R4 is %d, should be %d", regs[4][0], json_data.final.R[4])
-    }
-    if regs[5][0] != json_data.final.R[5] {
-        error_string = fmt.aprintf("Fail: R5 is %d, should be %d", regs[5][0], json_data.final.R[5])
-    }
-    if regs[6][0] != json_data.final.R[6] {
-        error_string = fmt.aprintf("Fail: R6 is %d, should be %d", regs[6][0], json_data.final.R[6])
-    }
-    if regs[7][0] != json_data.final.R[7] {
-        error_string = fmt.aprintf("Fail: R7 is %d, should be %d", regs[7][0], json_data.final.R[7])
-    }
-    if regs[8][0] != json_data.final.R[8] {
-        error_string = fmt.aprintf("Fail: R8 is %d, should be %d", regs[8][0], json_data.final.R[8])
-    }
-    if regs[9][0] != json_data.final.R[9] {
-        error_string = fmt.aprintf("Fail: R9 is %d, should be %d", regs[9][0], json_data.final.R[9])
-    }
-    if regs[10][0] != json_data.final.R[10] {
-        error_string = fmt.aprintf("Fail: R10 is %d, should be %d", regs[10][0], json_data.final.R[10])
-    }
-    if regs[11][0] != json_data.final.R[11] {
-        error_string = fmt.aprintf("Fail: R11 is %d, should be %d", regs[11][0], json_data.final.R[11])
-    }
-    if regs[12][0] != json_data.final.R[12] {
-        error_string = fmt.aprintf("Fail: R12 is %d, should be %d", regs[12][0], json_data.final.R[12])
+    for i in 8..=12 {
+        if regs[i][0] != json_data.final.R[i] {
+            error_string = fmt.aprintf("Fail: R%d(0) is %d, should be %d", i, regs[i][0], json_data.final.R[i])
+        }
+        if regs[i][1] != json_data.final.R_fiq[i - 8] {
+            error_string = fmt.aprintf("Fail: R%d(1) is %d, should be %d", i, regs[i][1], json_data.final.R_fiq[i - 8])
+        }
     }
     if regs[13][0] != json_data.final.R[13] {
-        error_string = fmt.aprintf("Fail: SP is %d, should be %d", regs[13][0], json_data.final.R[13])
+        error_string = fmt.aprintf("Fail: SP(0) is %d, should be %d", regs[13][0], json_data.final.R[13])
+    }
+    if regs[13][1] != json_data.final.R_fiq[5] {
+        error_string = fmt.aprintf("Fail: SP(1) is %d, should be %d", regs[13][1], json_data.final.R_fiq[5])
+    }
+    if regs[13][2] != json_data.final.R_irq[0] {
+        error_string = fmt.aprintf("Fail: SP(2) is %d, should be %d", regs[13][2], json_data.final.R_irq[0])
+    }
+    if regs[13][3] != json_data.final.R_svc[0] {
+        error_string = fmt.aprintf("Fail: SP(3) is %d, should be %d", regs[13][3], json_data.final.R_svc[0])
+    }
+    if regs[13][7] != json_data.final.R_abt[0] {
+        error_string = fmt.aprintf("Fail: SP(7) is %d, should be %d", regs[13][7], json_data.final.R_abt[0])
+    }
+    if regs[13][11] != json_data.final.R_und[0] {
+        error_string = fmt.aprintf("Fail: SP(11) is %d, should be %d", regs[13][11], json_data.final.R_und[0])
     }
     if regs[14][0] != json_data.final.R[14] {
-        error_string = fmt.aprintf("Fail: LR is %d, should be %d", regs[14][0], json_data.final.R[14])
+        error_string = fmt.aprintf("Fail: LR(0) is %d, should be %d", regs[14][0], json_data.final.R[14])
+    }
+    if regs[14][1] != json_data.final.R_fiq[6] {
+        error_string = fmt.aprintf("Fail: LR(1) is %d, should be %d", regs[14][1], json_data.final.R_fiq[6])
+    }
+    if regs[14][2] != json_data.final.R_irq[1] {
+        error_string = fmt.aprintf("Fail: LR(2) is %d, should be %d", regs[14][2], json_data.final.R_irq[1])
+    }
+    if regs[14][3] != json_data.final.R_svc[1] {
+        error_string = fmt.aprintf("Fail: LR(3) is %d, should be %d", regs[14][3], json_data.final.R_svc[1])
+    }
+    if regs[14][7] != json_data.final.R_abt[1] {
+        error_string = fmt.aprintf("Fail: LR(7) is %d, should be %d", regs[14][7], json_data.final.R_abt[1])
+    }
+    if regs[14][11] != json_data.final.R_und[1] {
+        error_string = fmt.aprintf("Fail: LR(11) is %d, should be %d", regs[14][11], json_data.final.R_und[1])
     }
     if PC != json_data.final.R[15] {
         error_string = fmt.aprintf("Fail: PC is %d, should be %d", PC, json_data.final.R[15])
     }
     if(!test_get_mul(opcode)) {
         if u32(CPSR) != json_data.final.CPSR {
-            error_string = fmt.aprintf("Fail: CPSR is %d\n,   should be %d", CPSR, Flags(json_data.final.CPSR))
+            error_string = fmt.aprintf("Fail: CPSR is %d\n, should be %d", CPSR, Flags(json_data.final.CPSR))
         }
     }
+    if regs[17][1] != json_data.final.SPSR[0] {
+        error_string = fmt.aprintf("Fail: SPSR(1) is %d\n,      should be %d", Flags(regs[17][1]), Flags(json_data.final.SPSR[0]))
+    }
+    if regs[17][3] != json_data.final.SPSR[1] {
+        error_string = fmt.aprintf("Fail: SPSR(3) is %d\n,      should be %d", Flags(regs[17][3]), Flags(json_data.final.SPSR[1]))
+    }
+    if regs[17][7] != json_data.final.SPSR[2] {
+        error_string = fmt.aprintf("Fail: SPSR(7) is %d\n,      should be %d", Flags(regs[17][7]), Flags(json_data.final.SPSR[2]))
+    }
+    if regs[17][2] != json_data.final.SPSR[3] {
+        error_string = fmt.aprintf("Fail: SPSR(2) is %d\n,      should be %d", Flags(regs[17][2]), Flags(json_data.final.SPSR[3]))
+    }
+    if regs[17][11] != json_data.final.SPSR[4] {
+        error_string = fmt.aprintf("Fail: SPSR(11) is %d\n,      should be %d", Flags(regs[17][11]), Flags(json_data.final.SPSR[4]))
+    }
     if pipeline[0] != json_data.final.pipeline[0] {
-        error_string = fmt.aprintf("Fail: pipeline 0 is %d, should be %d", pipeline[0], json_data.final.pipeline[0])
+        error_string = fmt.aprintf("Fail: pipeline 0 is %d,      should be %d", pipeline[0], json_data.final.pipeline[0])
     }
     /*if cycle != transactions[transaction_cnt-1].cycle {
         error_string = fmt.aprintf("Fail: cycle is %d, should be %d", cycle, transactions[transaction_cnt-1].cycle)
@@ -241,11 +244,11 @@ test_read32 :: proc(addr: u32) -> u32 {
         when TEST_BREAK_ERROR {
             fmt.print("Test #: ")
             fmt.println(test_count)
-            fmt.printfln("Fail: transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
+            fmt.printfln("Fail: r transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
             test_fail = true
             quit = true
-            fail_cnt += 1
         }
+        fail_cnt += 1
     }
     tmp := transactions[transaction_cnt].data
     transaction_cnt += 1
@@ -253,23 +256,25 @@ test_read32 :: proc(addr: u32) -> u32 {
 }
 
 test_write32 :: proc(addr: u32, value: u32) {
-    when TEST_BREAK_ERROR {
-        if addr != transactions[transaction_cnt].addr {
+    if addr != transactions[transaction_cnt].addr {
+        when TEST_BREAK_ERROR {
             fmt.print("Test #: ")
             fmt.println(test_count)
-            fmt.printfln("Fail: transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
+            fmt.printfln("Fail: w transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
             test_fail = true
             quit = true
-            fail_cnt += 1
         }
-        if value != transactions[transaction_cnt].data {
+        fail_cnt += 1
+    }
+    if value != transactions[transaction_cnt].data {
+        when TEST_BREAK_ERROR {
             fmt.print("Test #: ")
             fmt.println(test_count)
-            fmt.printfln("Fail: data %d is %d, should be %d", transaction_cnt, value, transactions[transaction_cnt].data)
+            fmt.printfln("Fail: w data %d is %d, should be %d", transaction_cnt, value, transactions[transaction_cnt].data)
             test_fail = true
             quit = true
-            fail_cnt += 1
         }
+        fail_cnt += 1
     }
     transaction_cnt += 1
 }
