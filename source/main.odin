@@ -130,39 +130,37 @@ main :: proc() {
             apu_advance(quadricycle_fragments / 4)
             quadricycle_fragments &= 3
 
-            if (cycles_since_last_sample >= cycles_per_sample) {
+            if(cycles_since_last_sample >= cycles_per_sample) {
                 cycles_since_last_sample -= cycles_per_sample
                 out := apu_output()
                 buffer_push_back(out)
             }
 
-            if step {
+            if(step) {
                 draw_debug()
                 step = false
             }
         }
-        if pause != last_pause {
+        if(pause != last_pause) {
             draw_debug()
             last_pause = pause
         }
 
         handle_events()
 
-        if (accumulated_time > step_length) {
+        if(accumulated_time > step_length) {
             // Draw if its time and ppu is ready
-            if redraw {
-                draw_main(ppu_get_pixels(), texture)
-            }
             redraw = false
-            frame_cnt += accumulated_time
+            draw_main(ppu_get_pixels(), texture)
 
+            frame_cnt += accumulated_time
             if(frame_cnt > 0.25) { //Update frame counter 4 times/s
                 frame_cnt = 0
                 frames := math.round(1.0 / accumulated_time)
                 line := fmt.caprintf("odin-gba - %s %.1ffps", file_name, frames)
                 sdl.SetWindowTitle(window, line)
             }
-            accumulated_time = 0
+            accumulated_time -= step_length
         }
     }
 }
