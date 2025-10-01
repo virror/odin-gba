@@ -108,7 +108,7 @@ debug_draw_op_arm :: proc(opText: cstring, pc: u32, posX: f32, posY: f32) {
 debug_draw_op_thumb :: proc(opText: cstring, pc: u32, posX: f32, posY: f32) {
     op := u16(pipeline[pc])
     name := debug_get_thumb_names(op)
-    line := fmt.caprintf("%s %8x %s", opText, op, name)
+    line := fmt.caprintf("%s %4x %s", opText, op, name)
     debug_text(line, posX, posY, {230, 230, 230, 230})
 }
 
