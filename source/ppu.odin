@@ -199,9 +199,9 @@ ppu_draw_mode_2 :: proc(dispcnt: u16) {
 }
 
 ppu_draw_mode_3 :: proc() {
-    for i :u16= 0; i < 240; i += 1 {
-        pixel := ((line_count * 240) + i)
-        data := bus_get16(VRAM + u32(pixel * 2))
+    for i :u32= 0; i < 240; i += 1 {
+        pixel := (u32(line_count) * 240) + i
+        data := bus_get16(VRAM + pixel * 2)
         screen_buffer[pixel] = data
     }
 }
@@ -209,16 +209,16 @@ ppu_draw_mode_3 :: proc() {
 ppu_draw_mode_4 :: proc(dispcnt: u16) {
     start := VRAM
     if(utils_bit_get16(dispcnt, 4)) {
-        start += 0xA000    //TODO: Correct??
+        start += 0xA000
     }
-    for i :u16= 0; i < 240; i += 1 {
-        pixel := u32((line_count * 240) + i)
+    for i :u32= 0; i < 240; i += 1 {
+        pixel := (u32(line_count) * 240) + i
         palette := bus_get8(start + pixel)
         if(palette != 0) {
             data := bus_get16(BG_PALETTE + (u32(palette) * 2))
             screen_buffer[pixel] = data
-        } else { //TODO: Hack, BG0 palette 0 should be used as background
-            screen_buffer[pixel] = 0x0
+        } else {
+            screen_buffer[pixel] = bus_get16(BG_PALETTE)
         }
     }
 }
@@ -229,13 +229,13 @@ ppu_draw_mode_5 :: proc(dispcnt: u16) {
     if(utils_bit_get16(dispcnt, 4)) {
         start += 0xA000
     }
-    for i :u16= 0; i < 240; i += 1 {
-        pixel := u32((line_count * 240) + i)
+    for i :u32= 0; i < 240; i += 1 {
+        pixel := (u32(line_count) * 240) + i
         if(line_count >= 128) {
-            screen_buffer[pixel] = 0x0
+            screen_buffer[pixel] = bus_get16(BG_PALETTE)
             continue
         } else if(i >= 160) {
-            screen_buffer[pixel] = 0x0
+            screen_buffer[pixel] = bus_get16(BG_PALETTE)
             continue
         } else {
             data := bus_get16(start + (pixel * 2))
