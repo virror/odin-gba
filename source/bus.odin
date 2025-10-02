@@ -167,6 +167,8 @@ bus_read16 :: proc(addr: u32) -> u16 {
     when TEST_ENABLE {
         return u16(test_read32(addr))
     } else {
+        addr := addr
+        addr &= 0xFFFFFFFE
         value := u16(bus_read8(addr))
         value |= (u16(bus_read8(addr + 1))) << 8
         return value
@@ -205,6 +207,7 @@ bus_read32 :: proc(addr: u32) -> u32 {
     when TEST_ENABLE {
         return test_read32(addr)
     } else {
+        addr &= 0xFFFFFFFC
         value := u32(bus_read8(addr))
         value |= (u32(bus_read8(addr + 1)) << 8)
         value |= (u32(bus_read8(addr + 2)) << 16)

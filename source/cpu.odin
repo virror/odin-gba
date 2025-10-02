@@ -62,7 +62,7 @@ cpu_init :: proc() {
 
 cpu_refetch16 :: proc() {
     pipeline[0] = u32(bus_read16(PC & 0xFFFFFFFE))
-    pipeline[1] = u32(bus_read16(PC & 0xFFFFFFFE))
+    pipeline[1] = u32(bus_read16((PC + 2) & 0xFFFFFFFE))
     PC += 4
 }
 
@@ -86,6 +86,10 @@ cpu_prefetch32 :: proc() {
 }
 
 cpu_step :: proc() -> u32 {
+    /*if PC == 0xC18 {
+        pause = true
+        draw_debug()
+    }*/
     when !TEST_ENABLE {
         cpu_exec_irq()
 
@@ -863,8 +867,7 @@ cpu_ldr :: proc(opcode: u32, I: bool) -> u32 {
             data = u32(bus_read8(address))
         } else { //LDR
             shift := address & 0x3
-            address2 := u32(address & ~shift)
-            data = bus_read32(address2)
+            data = bus_read32(address)
             if(shift > 0) {
                 data = cpu_ror32(data, shift * 8)
             }
@@ -1024,8 +1027,7 @@ cpu_mrc_mcr :: proc(opcode: u32) -> u32 {
 cpu_swi :: proc() -> u32 {
     cpsr := CPSR
     CPSR.Mode = Modes.M_SUPERVISOR
-    cpu_reg_set(Regs.LR, PC)
-    PC += 4
+    cpu_reg_set(Regs.LR, PC - 4)
     PC = 0x08
     cpu_reg_set(Regs.SPSR, u32(cpsr))
     CPSR.Thumb = false  //ARM mode
@@ -1409,8 +1411,7 @@ cpu_ls_ext :: proc(opcode: u16) -> u32 {
         break
     case 0x800: //LDRH
         shift := address & 0x1
-        address2 := u32(address & ~shift)
-        data := u32(bus_read16(address2))
+        data := u32(bus_read16(address))
         if(shift == 1) {
             data = cpu_ror32(data, 8)
         }
@@ -1447,7 +1448,6 @@ cpu_ls_reg :: proc(opcode: u16) -> u32 {
         break
     case 0x800: //LDR
         shift := address & 0x3
-        address = address & ~shift
         data := bus_read32(address)
         data = cpu_ror32(data, shift * 8)
         cpu_reg_set(Rd, data)
@@ -1474,7 +1474,6 @@ cpu_ls_imm :: proc(opcode: u16) -> u32 {
     case 0x0800: //LDR
         address := cpu_reg_get(Rb) + (imm << 2)
         shift := address & 0x3
-        address = address & ~shift
         data := bus_read32(address)
         data = cpu_ror32(data, shift * 8)
         cpu_reg_set(Rd, data)
@@ -1500,8 +1499,7 @@ cpu_ls_hw :: proc(opcode: u16) -> u32 {
     if(L) { //LDRH
         address := cpu_reg_get(Rb) + imm
         shift := address & 0x1
-        address2 := address & ~shift
-        data := u32(bus_read16(address2))
+        data := u32(bus_read16(address))
         if(shift == 1) {
             data = cpu_ror32(data, 8)
         }
@@ -1522,7 +1520,6 @@ cpu_ls_sp :: proc(opcode: u16) -> u32 {
     if(L) { //LDR
         address := cpu_reg_get(Regs.SP) + imm
         shift := address & 0x3
-        address = address & ~shift
         data := bus_read32(address)
         data = cpu_ror32(data, shift * 8)
         cpu_reg_set(Rd, data)
@@ -1706,11 +1703,11 @@ cpu_b_cond :: proc(opcode: u16) -> u32{
     case 14:
         do_jump = true
     case 15: //SWI
-        cpu_reg_set(Regs.SPSR, u32(CPSR))
+        regs[17][3] = u32(CPSR)
         CPSR.Mode = Modes.M_SUPERVISOR
         CPSR.Thumb = false      //ARM mode
         CPSR.IRQ = true         //Disable interrupts
-        cpu_reg_set(Regs.LR, PC - 2)
+        cpu_reg_set(Regs.LR, PC - 4)
         cpu_reg_set(Regs.PC, 0x08)
         return 3
     }
