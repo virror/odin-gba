@@ -21,13 +21,12 @@ buffer_is_full :: proc() -> bool {
 
 buffer_push_back :: proc(x: f32) {
     assert(!buffer_is_full())
-
-    /*buffer[end] = x
+    buffer[end] = x
     end += 1
-    end &= N - 1*/
+    end &= N - 1
 }
 
-buffer_take_front :: proc(n: u32) -> Vector2f {
+buffer_take_front :: proc(n: u32) -> []f32 {
     assert(n <= buffer_size())
 
     /*std::vector<float> data
@@ -38,9 +37,15 @@ buffer_take_front :: proc(n: u32) -> Vector2f {
         std::copy(&buffer[begin], std::end(buffer), it)
         std::copy(std::begin(buffer), &buffer[end], it)
     }*/
+    slice: []f32
+    if(begin <= end) {
+        slice = buffer[begin:begin + n]
+    } else {
+        slice = {0,0}
+    }
 
-    /*begin += n
-    begin &= N - 1*/
+    begin += n
+    begin &= N - 1
 
-    return {0, 0} //data
+    return slice
 }

@@ -31,6 +31,7 @@ dma0: Dma
 dma1: Dma
 dma2: Dma
 dma3: Dma
+audio_stream: ^sdl.AudioStream
 
 main :: proc() {
     if(!sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO)) {
@@ -69,11 +70,10 @@ main :: proc() {
     desired.format = sdl.AudioFormat.F32
     desired.channels = 1
 
-    device := sdl.OpenAudioDeviceStream(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, audio_handler, nil)
-    defer sdl.ClearAudioStream(device)
-    //sdl.ResumeAudioStreamDevice(device)
+    audio_stream = sdl.OpenAudioDeviceStream(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, audio_handler, nil)
+    defer sdl.ClearAudioStream(audio_stream)
 
-    assert(device != nil, "Failed to create audio device") // TODO: Handle error
+    assert(audio_stream != nil, "Failed to create audio device") // TODO: Handle error
 
     debug_init()
     defer debug_quit()
@@ -136,8 +136,8 @@ main :: proc() {
 
             if(cycles_since_last_sample >= cycles_per_sample) {
                 cycles_since_last_sample -= cycles_per_sample
-                out := apu_output()
-                buffer_push_back(out)
+                /*out := apu_output()
+                buffer_push_back(out)*/
             }
 
             if(step) {
@@ -215,6 +215,11 @@ handle_keys_down :: proc(keycode: sdl.Keycode) {
     case sdl.K_SPACE:
         last_pause = pause
         pause = !pause
+        /*if(!pause) {
+            sdl.ResumeAudioStreamDevice(audio_stream)
+        } else {
+            sdl.PauseAudioStreamDevice(audio_stream)
+        }*/
         break
     case sdl.K_S:
         step = true
@@ -306,13 +311,14 @@ handle_keys_up :: proc(keycode: sdl.Keycode) {
         break
     }
 }
-current_sine_sample := 0
+
 audio_handler :: proc "c" (userdata: rawptr, stream: ^sdl.AudioStream, additional_amount, total_amount: i32) {
     context = runtime.default_context()
     nr_of_samples := u32(total_amount / size_of(f32))
     if(buffer_size() >= nr_of_samples) {
         chunk := buffer_take_front(nr_of_samples)
-        sdl.PutAudioStreamData(stream, &chunk, i32(nr_of_samples) * i32(size_of(f32)))
+        size := i32(len(chunk) * size_of(f32))
+        sdl.PutAudioStreamData(stream, &chunk, size)
     } else {
         //sdl.PutAudioStreamData(stream, &def, total_amount)
     }

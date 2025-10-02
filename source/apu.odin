@@ -222,21 +222,20 @@ unsigned int frequency_calculation(const Square &channel)
         return channel.frequency_shadow + shifted;
     }
 }
-
-void overflow_check(Square &channel, unsigned int freq)
-{
+*/
+overflow_check :: proc(channel: ^Square, freq: int) {
     if (freq > 2047) {
         // Disable channel, TODO: Only when add not sub? See GB CPU manual:
         // "When overflow occurs at the addition mode while sweep is
         // operating at sound 1."
-        channel.disable();
+        apu_disable(channel)
     }
 }
-*/
+
 apu_trigger ::proc (channel: ^Square) {
-    /*channel.enable();
+    apu_enable(channel)
     // Reset length counter if zero
-    if (channel.length_counter == 0) {
+    /*if (channel.length_counter == 0) {
         channel.length_counter = channel.type == ChannelType::wave ? 256 : 64;
     }
     // Reload frequency timer with period
@@ -379,19 +378,19 @@ apu_b_timer :: proc() -> u8 {
 }
 
 apu_step_a :: proc() {
-    /*direct_sound_a_out = direct_sound_a_buffer[direct_sound_a_counter];
-    direct_sound_a_counter = (direct_sound_a_counter + 1) & 0b1111;
-    if (direct_sound_a_counter == 0) {
-        dma1_request_fifo_data()
-    }*/
+    direct_sound_a_out = direct_sound_a_buffer[direct_sound_a_counter]
+    direct_sound_a_counter = (direct_sound_a_counter + 1) & 0xF
+    if(direct_sound_a_counter == 0) {
+        dma_request_fifo_data(&dma1)
+    }
 }
 
 apu_step_b :: proc() {
-    /*direct_sound_b_out = direct_sound_b_buffer[direct_sound_b_counter];
-    direct_sound_b_counter = (direct_sound_b_counter + 1) & 0b1111;
-    if (direct_sound_b_counter == 0) {
-        dma2_request_fifo_data()
-    }*/
+    direct_sound_b_out = direct_sound_b_buffer[direct_sound_b_counter]
+    direct_sound_b_counter = (direct_sound_b_counter + 1) & 0xF
+    if(direct_sound_b_counter == 0) {
+        dma_request_fifo_data(&dma2)
+    }
 }
 
 apu_reset_fifo_a :: proc() {
@@ -403,17 +402,20 @@ apu_reset_fifo_b :: proc() {
 }
 
 apu_load_fifo_a :: proc(data: u8) {
-    /*direct_sound_a_buffer[direct_sound_a_counter += 1] = data
-    if (direct_sound_a_counter > 15)
-        direct_sound_a_counter = 0*/
+    direct_sound_a_buffer[direct_sound_a_counter] = i8(data)
+    direct_sound_a_counter -= 1
+    if(direct_sound_a_counter > 15) {
+        direct_sound_a_counter = 0
+    }
 }
 
 apu_load_fifo_b :: proc(data: u8) {
-    /*direct_sound_b_buffer[direct_sound_b_counter++] = data
-    if (direct_sound_b_counter > 15)
-        direct_sound_b_counter = 0*/
+    direct_sound_b_buffer[direct_sound_b_counter] = i8(data)
+    direct_sound_b_counter += 1
+    if(direct_sound_b_counter > 15) {
+        direct_sound_b_counter = 0
+    }
 }
-
 
 apu_output :: proc() -> f32 {
     /*int duty1 = (registers[NR11] & 0b11000000) >> 6;
@@ -429,9 +431,9 @@ apu_output :: proc() -> f32 {
 
     int dac4_in = (~noise.lfsr & 0x01) * noise.volume;
     float dac4_out = dac4_in / 7.5;
-
-    float out = 0.0f;
-
+    */
+    out :f32= 0.0
+    /*
     // Mix
     if (registers[NR52] & 0b00000001) {
         out += dac1_out;
@@ -444,14 +446,13 @@ apu_output :: proc() -> f32 {
     // }
     if (registers[NR52] & 0b00001000) {
         out += dac4_out;
+    }*/
+    if(mem[IO_SOUNDCNT_H + 1] & 0x03) > 0 {
+        out += f32(i16(direct_sound_a_out) + 128) / 128.0
     }
-    if (registers[SOUNDCNT_H + 1] & 0x03) {
-        out += (direct_sound_a_out + 128) / 128.0f;
-    }
-    if (registers[SOUNDCNT_H + 1] & 0x30) {
-        out += (direct_sound_b_out + 128) / 128.0f;
+    if(mem[IO_SOUNDCNT_H + 1] & 0x30) > 0 {
+        out += f32(i16(direct_sound_b_out) + 128) / 128.0
     }
 
-    return out / 5.0 - 1.0;*/
-    return 0
+    return out - 1.0
 }
