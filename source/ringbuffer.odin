@@ -3,7 +3,7 @@ package main
 import "core:fmt"
 
 N :: 8192
-sound_buffer: [N]f32
+buffer: [N]f32
 begin: u32
 end: u32
 
@@ -20,26 +20,27 @@ buffer_is_full :: proc() -> bool {
 }
 
 buffer_push_back :: proc(x: f32) {
-    /*assert(!is_full());
+    assert(!buffer_is_full())
 
-    buffer[end++] = x;
-    end &= N - 1;*/
+    /*buffer[end] = x
+    end += 1
+    end &= N - 1*/
 }
 
-buffer_take_front :: proc(n: u32) {
-    /*assert(n <= size());
+buffer_take_front :: proc(n: u32) -> Vector2f {
+    assert(n <= buffer_size())
 
-    std::vector<float> data;
-    auto it = back_inserter(data);
-    if (begin <= end) {
-        std::copy(&buffer[begin], &buffer[end], it);
+    /*std::vector<float> data
+    it := back_inserter(data)
+    if(begin <= end) {
+        std::copy(&buffer[begin], &buffer[end], it)
     } else {
-        std::copy(&buffer[begin], std::end(buffer), it);
-        std::copy(std::begin(buffer), &buffer[end], it);
-    }
+        std::copy(&buffer[begin], std::end(buffer), it)
+        std::copy(std::begin(buffer), &buffer[end], it)
+    }*/
 
-    begin += n;
-    begin &= N - 1;
+    /*begin += n
+    begin &= N - 1*/
 
-    return data;*/
+    return {0, 0} //data
 }

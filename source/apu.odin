@@ -2,10 +2,51 @@ package main
 
 import "core:fmt"
 
+ChannelType :: enum {
+    square1,
+    square2,
+    wave,
+    noise,
+}
+
+Square :: struct {
+    type: ChannelType,
+    reg0: u32,   // NRx0
+    reg1: u32,   // NRx1
+    reg2: u32,   // NRx2
+    reg3: u32,   // NRx3
+    reg4: u32,   // NRx4
+    status: u32, // NR52
+    wave_table: [32]u8,
+    // Timer
+    timer_period: int,
+    timer_val: int,
+    // Duty (triggered by timer)
+    duty_index: int,
+    length_counter: int,
+    // Envelope
+    vol_envelope_timer: int,
+    volume: int,
+    // Sweep
+    sweep_timer: int,
+    sweep_enabled: bool,
+    frequency_shadow: uint,
+    // Wave (triggered by timer)
+    sample_buffer: u32,
+    position: u8,
+    // LFSR (triggered by timer)
+    lfsr: u16,
+}
+
 direct_sound_a_counter: u16
 direct_sound_b_counter: u16
-direct_sound_a_out: u8
-direct_sound_b_out: u8
+direct_sound_a_out: i8
+direct_sound_b_out: i8
+direct_sound_a_buffer: [16]i8
+direct_sound_b_buffer: [16]i8
+square1: Square
+square2: Square
+noise: Square
 
 /*
 constexpr int duty_cycles[4][8] = {
@@ -13,44 +54,98 @@ constexpr int duty_cycles[4][8] = {
     {1, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 0, 0, 0, 1, 1, 1},
     {0, 1, 1, 1, 1, 1, 1, 0}
-};
+}
 
 constexpr int wave_shifts[] = {
     4, 0, 1, 2
-};
+}
 
 constexpr int base_divisors[] = {
     8, 16, 32, 48, 64, 80, 96, 112
-};
+}
 
-constexpr int cycles_per_clock = 4'190'000 / 512;
+constexpr int cycles_per_clock = 4'190'000 / 512
 */
 
+apu_init :: proc(channel: ^Square, id: int) {
+    channel.timer_period = 4 * (2048 - 1524)
+    channel.timer_val = 4 * (2048 - 1524)
+    channel.vol_envelope_timer = 7
+    channel.volume = 15
+    channel.sweep_timer = 7
+    channel.status = IO_SOUNDCNT_H // NR52
+
+    switch(id) {
+    case 0:
+        channel.type = .square1
+        channel.reg0 = IO_SOUND1CNT_L       // NR10
+        channel.reg1 = IO_SOUND1CNT_H       // NR11
+        channel.reg2 = IO_SOUND1CNT_H + 1   // NR12
+        channel.reg3 = IO_SOUND1CNT_X       // NR13
+        channel.reg4 = IO_SOUND1CNT_X + 1   // NR14
+    case 1:
+        channel.type = .square2
+        channel.reg1 = IO_SOUND2CNT_L       // NR21
+        channel.reg2 = IO_SOUND2CNT_L + 1   // NR22
+        channel.reg3 = IO_SOUND2CNT_H       // NR23
+        channel.reg4 = IO_SOUND2CNT_H + 1   // NR24
+    case 3:
+        channel.type = .noise
+        channel.reg1 = IO_SOUND4CNT_L       // NR41
+        channel.reg2 = IO_SOUND4CNT_L + 1   // NR42
+        channel.reg3 = IO_SOUND4CNT_H       // NR43
+        channel.reg4 = IO_SOUND4CNT_H + 1   // NR44
+    }
+}
+
 apu_load_length_counter_square1 :: proc(len: u8) {
-    //square1.length_counter = len
+    square1.length_counter = int(len)
 }
 
 apu_load_length_counter_square2 :: proc(len: u8) {
-    //square2.length_counter = len
+    square2.length_counter = int(len)
 }
 
 // void load_length_counter_wave(int len)
 // {
-//     wave.length_counter = len;
+//     wave.length_counter = len
 // }
 
 apu_load_length_counter_noise :: proc(len: u8) {
-    //noise.length_counter = len
+    noise.length_counter = int(len)
+}
+
+apu_disable :: proc(channel: ^Square) {
+    status_bit := ~(1 << u8(channel.type))
+    status := bus_get8(channel.status)
+    bus_set8(channel.status, status & u8(status_bit))
+}
+
+apu_enable :: proc(channel: ^Square) {
+    status_bit := (1 << u8(channel.type))
+    status := bus_get8(channel.status)
+    bus_set8(channel.status, status & u8(status_bit))
+}
+
+apu_read_wave_sample :: proc(channel: ^Square) -> u8 {
+    b := channel.position / 2
+    nibble := channel.position % 2
+    data := channel.wave_table[b]
+    if(nibble == 0) {
+        return data >> 4
+    } else {
+        return data & 0x0f
+    }
 }
 
 /*
 void update_length_counter(Square &channel)
 {
-    bool length_enabled = *channel.reg4 & 0b01000000;
+    bool length_enabled = *channel.reg4 & 0b01000000
     if (length_enabled && channel.length_counter > 0) {
-        --channel.length_counter;
+        --channel.length_counter
         if (channel.length_counter == 0) {
-            channel.disable();
+            channel.disable()
         }
     }
 }
@@ -137,10 +232,9 @@ void overflow_check(Square &channel, unsigned int freq)
         channel.disable();
     }
 }
-
-void trigger(Square &channel)
-{
-    channel.enable();
+*/
+apu_trigger ::proc (channel: ^Square) {
+    /*channel.enable();
     // Reset length counter if zero
     if (channel.length_counter == 0) {
         channel.length_counter = channel.type == ChannelType::wave ? 256 : 64;
@@ -198,9 +292,9 @@ void trigger(Square &channel)
             overflow_check(channel, new_freq);
             // TODO: Should we write back?
         }
-    }
+    }*/
 }
-
+/*
 void update_sweep(Square &channel)
 {
     if (channel.sweep_timer > 0) {
@@ -265,51 +359,40 @@ apu_advance :: proc(cycles: u32) {
 }
 
 apu_trigger_square1 :: proc() {
-    //trigger(square1)
+    apu_trigger(&square1)
 }
 
 apu_trigger_square2 :: proc() {
-    //trigger(square2)
+    apu_trigger(&square2)
 }
 
 apu_trigger_noise :: proc() {
-    //trigger(noise)
+    apu_trigger(&noise)
 }
 
-/*
-void APU::trigger_noise()
-{
-    trigger(noise);
+apu_a_timer :: proc() -> u8 {
+    return bus_get8(IO_SOUNDCNT_H + 1) & 0x04
 }
 
-int APU::ds_a_timer()
-{
-    return !!(registers[SOUNDCNT_H + 1] & 0x04);
+apu_b_timer :: proc() -> u8 {
+    return bus_get8(IO_SOUNDCNT_H + 1) & 0x40
 }
 
-int APU::ds_b_timer()
-{
-    return !!(registers[SOUNDCNT_H + 1] & 0x40);
-}
-
-void APU::step_ds_a()
-{
-    direct_sound_a_out = direct_sound_a_buffer[direct_sound_a_counter];
+apu_step_a :: proc() {
+    /*direct_sound_a_out = direct_sound_a_buffer[direct_sound_a_counter];
     direct_sound_a_counter = (direct_sound_a_counter + 1) & 0b1111;
     if (direct_sound_a_counter == 0) {
-        dma1->request_fifo_data();
-    }
+        dma1_request_fifo_data()
+    }*/
 }
 
-void APU::step_ds_b()
-{
-    direct_sound_b_out = direct_sound_b_buffer[direct_sound_b_counter];
+apu_step_b :: proc() {
+    /*direct_sound_b_out = direct_sound_b_buffer[direct_sound_b_counter];
     direct_sound_b_counter = (direct_sound_b_counter + 1) & 0b1111;
     if (direct_sound_b_counter == 0) {
-        dma2->request_fifo_data();
-    }
+        dma2_request_fifo_data()
+    }*/
 }
-*/
 
 apu_reset_fifo_a :: proc() {
     direct_sound_a_counter = 0

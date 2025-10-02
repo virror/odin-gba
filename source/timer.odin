@@ -69,12 +69,12 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
             iflags = utils_bit_set16(iflags, timer.index + 3)
             bus_set16(IO_IF, iflags)
         }
-        /*if(apu && apu->ds_a_timer() == timer.index) {
-            apu->step_ds_a()
+        if(apu_a_timer() == timer.index) {
+            apu_step_a()
         }
-        if(apu && apu->ds_b_timer() == timer.index) {
-            apu->step_ds_b()
-        }*/
+        if(apu_b_timer() == timer.index) {
+            apu_step_b()
+        }
     }
     //*(uint16_t *)memory = (uint16_t)counter //TMxCNT_L
     bus_set16(IO_TM0CNT_L + u32(timer.index * 4), u16(timer.counter))

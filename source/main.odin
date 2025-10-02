@@ -3,6 +3,7 @@ package main
 import "core:math"
 import "core:fmt"
 import "core:path/filepath"
+import "base:runtime"
 import sdl "vendor:sdl3"
 import sdlttf "vendor:sdl3/ttf"
 
@@ -11,7 +12,7 @@ WIN_HEIGHT :: 160
 WIN_SCALE :: 2
 
 START_BIOS :: false
-ROM_PATH :: "tests/armwrestler.gba"
+ROM_PATH :: "tests/touhou_bad_apple.gba"
 
 @(private="file")
 window: ^sdl.Window
@@ -21,7 +22,6 @@ quit: bool
 step: bool
 pause := true
 last_pause := true
-redraw: bool
 texture: ^sdl.Texture
 timer0: Timer
 timer1: Timer
@@ -68,10 +68,10 @@ main :: proc() {
     desired.freq = 48000
     desired.format = sdl.AudioFormat.F32
     desired.channels = 1
-    //desired.samples = 64
 
-    device := sdl.OpenAudioDeviceStream(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, nil, nil)
+    device := sdl.OpenAudioDeviceStream(sdl.AUDIO_DEVICE_DEFAULT_PLAYBACK, &desired, audio_handler, nil)
     defer sdl.ClearAudioStream(device)
+    //sdl.ResumeAudioStreamDevice(device)
 
     assert(device != nil, "Failed to create audio device") // TODO: Handle error
 
@@ -88,6 +88,9 @@ main :: proc() {
     dma_init(&dma1, 1)
     dma_init(&dma2, 2)
     dma_init(&dma3, 3)
+    apu_init(&square1, 0)
+    apu_init(&square2, 1)
+    apu_init(&noise, 3)
     input_init()
 
     when TEST_ENABLE {
@@ -108,6 +111,7 @@ main :: proc() {
     frame_cnt := 0.0
     step_length := 1.0 / 60.0
     quadricycle_fragments: u32
+    redraw: bool
 
     draw_debug()
 
@@ -302,18 +306,17 @@ handle_keys_up :: proc(keycode: sdl.Keycode) {
         break
     }
 }
-
-/*audio_handler :: proc(userdata: rawptr, stream: [^]u8, len: c.int) {
-    size_t nr_of_samples = len / 4;
-    if (buffer_size() >= nr_of_samples) {
-        auto chunk = buffer_take_front(nr_of_samples);
-        for (size_t i = 0; i < nr_of_samples; ++i) {
-            *((float*)stream + i) = chunk[i];
-        }
+current_sine_sample := 0
+audio_handler :: proc "c" (userdata: rawptr, stream: ^sdl.AudioStream, additional_amount, total_amount: i32) {
+    context = runtime.default_context()
+    nr_of_samples := u32(total_amount / size_of(f32))
+    if(buffer_size() >= nr_of_samples) {
+        chunk := buffer_take_front(nr_of_samples)
+        sdl.PutAudioStreamData(stream, &chunk, i32(nr_of_samples) * i32(size_of(f32)))
     } else {
-        std::fill(stream, stream + len, -1.0f);
+        //sdl.PutAudioStreamData(stream, &def, total_amount)
     }
-}*/
+}
 
 init_controller :: proc() {
     controller: ^sdl.Gamepad
