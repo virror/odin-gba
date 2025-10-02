@@ -76,7 +76,6 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
             apu_step_b()
         }
     }
-    //*(uint16_t *)memory = (uint16_t)counter //TMxCNT_L
     bus_set16(IO_TM0CNT_L + u32(timer.index * 4), u16(timer.counter))
 }
 
@@ -97,7 +96,7 @@ tmr_set_control :: proc(timer: ^Timer, value: u8) {
     timer.enabled = utils_bit_get16(u16(value), 7)
     if(timer.enabled && (timer.enabled != timer.old_enabled)) {
         timer.counter = u32(timer.start_time)
-        //*(uint16_t *)memory = timer.start_time //TMxCNT_L
+        bus_set16(IO_TM0CNT_L + u32(timer.index * 4), timer.start_time)
         timer.old_enabled = timer.enabled
     }
 }
