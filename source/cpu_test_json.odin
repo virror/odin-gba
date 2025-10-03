@@ -4,7 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:encoding/json"
 
-TEST_ENABLE :: true
+TEST_ENABLE :: false
 TEST_ALL :: false
 TEST_FILE :: "tests/json/arm_mrs.json"
 TEST_BREAK_ERROR :: true
@@ -53,6 +53,8 @@ test_count: int
 transaction_cnt: u32
 @(private="file")
 transactions: []Transaction
+@(private="file")
+error_string: string
 
 test_all :: proc() {
     when TEST_ALL {
@@ -108,7 +110,7 @@ M_SYSTEM = 15,
 */
 @(private="file")
 test_run :: proc(json_data: Json_data) {
-    error_string: string
+    error_string = ""
     for i in 0..=14 {
         regs[i][0] = json_data.initial.R[i]
     }
@@ -241,14 +243,7 @@ test_run :: proc(json_data: Json_data) {
 
 test_read32 :: proc(addr: u32) -> u32 {
     if addr != transactions[transaction_cnt].addr {
-        when TEST_BREAK_ERROR {
-            fmt.print("Test #: ")
-            fmt.println(test_count)
-            fmt.printfln("Fail: r transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
-            test_fail = true
-            quit = true
-        }
-        fail_cnt += 1
+        error_string = fmt.aprintf("Fail: r transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
     }
     tmp := transactions[transaction_cnt].data
     transaction_cnt += 1
@@ -257,24 +252,10 @@ test_read32 :: proc(addr: u32) -> u32 {
 
 test_write32 :: proc(addr: u32, value: u32) {
     if addr != transactions[transaction_cnt].addr {
-        when TEST_BREAK_ERROR {
-            fmt.print("Test #: ")
-            fmt.println(test_count)
-            fmt.printfln("Fail: w transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
-            test_fail = true
-            quit = true
-        }
-        fail_cnt += 1
+        error_string = fmt.aprintf("Fail: w transaction %d is %d, should be %d", transaction_cnt, addr, transactions[transaction_cnt].addr)
     }
     if value != transactions[transaction_cnt].data {
-        when TEST_BREAK_ERROR {
-            fmt.print("Test #: ")
-            fmt.println(test_count)
-            fmt.printfln("Fail: w data %d is %d, should be %d", transaction_cnt, value, transactions[transaction_cnt].data)
-            test_fail = true
-            quit = true
-        }
-        fail_cnt += 1
+        error_string = fmt.aprintf("Fail: w data %d is %d, should be %d", transaction_cnt, value, transactions[transaction_cnt].data)
     }
     transaction_cnt += 1
 }
