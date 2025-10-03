@@ -90,7 +90,7 @@ bus_read8 :: proc(addr: u32) -> u8 {
     }
 }
 
-bus_write8 :: proc(addr: u32, value: u8) {
+bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
     when TEST_ENABLE {
         test_write32(addr, u32(value))
     } else {
@@ -117,6 +117,13 @@ bus_write8 :: proc(addr: u32, value: u8) {
             addr &= 0x601FFFF
             if(addr >= 0x6018000) {
                 addr -= 0x8000
+            }
+            if width == 1 { //TODO: Hacky fix, do a better job at implementing,
+                            //see: https://problemkaputt.de/gbatek.htm#gbaunpredictablethings - "Writing 8bit Data to Video Memory"
+                addr &= 0xFFFFFFFE
+                mem[addr] = value
+                mem[addr + 1] = value
+                return
             }
             break
         case 0x7000000: //OBJ RAM
@@ -181,8 +188,8 @@ bus_write16 :: proc(addr: u32, value: u16) {
     } else {
         addr := addr
         addr &= 0xFFFFFFFE
-        bus_write8(addr, u8(value & 0x00FF))
-        bus_write8(addr + 1, u8((value & 0xFF00) >> 8))
+        bus_write8(addr, u8(value & 0x00FF), 2)
+        bus_write8(addr + 1, u8((value & 0xFF00) >> 8), 2)
     }
 }
 
@@ -225,9 +232,9 @@ bus_write32 :: proc(addr: u32, value: u32) {
         addr := addr
         addr &= 0xFFFFFFFC
         bus_write8(addr, u8(value & 0x000000FF))
-        bus_write8(addr + 1, u8((value & 0x0000FF00) >> 8))
-        bus_write8(addr + 2, u8((value & 0x00FF0000) >> 16))
-        bus_write8(addr + 3, u8((value & 0xFF000000) >> 24))
+        bus_write8(addr + 1, u8((value & 0x0000FF00) >> 8), 4)
+        bus_write8(addr + 2, u8((value & 0x00FF0000) >> 16), 4)
+        bus_write8(addr + 3, u8((value & 0xFF000000) >> 24), 4)
     }
 }
 

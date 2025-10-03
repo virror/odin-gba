@@ -1,7 +1,7 @@
 General info:
 https://problemkaputt.de/gbatek.htm
 General info:
-https://www.coranac.com/tonc/text/toc.htm
+https://gbadev.net/tonc/
 General info:
 https://www.cs.rit.edu/~tjh8300/CowBite/CowBiteSpec.htm
 Audio info:
@@ -12,3 +12,5 @@ BIOS and game startup info:
 https://feuniverse.us/t/gba-start-routine-and-global-variables-initialization/4902
 FLASH info:
 https://dillonbeliveau.com/2020/06/05/GBA-FLASH.html
+Test references:
+https://github.com/jsmolka/gba-tests/tree/master/arm
