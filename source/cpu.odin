@@ -86,10 +86,6 @@ cpu_prefetch32 :: proc() {
 }
 
 cpu_step :: proc() -> u32 {
-    /*if PC == 0xC18 {
-        pause = true
-        draw_debug()
-    }*/
     when !TEST_ENABLE {
         cpu_exec_irq()
 
@@ -214,14 +210,15 @@ cpu_exec_irq :: proc() {
     //Handle interrupts
     if(utils_bit_get16(bus_get16(IO_IME), 0) && !CPSR.IRQ) { //IEs enabled
         if(bus_get16(IO_IE) & bus_get16(IO_IF) > 0) { //IE triggered
+            regs[17][2] = u32(CPSR)     //Store cpsr in IRQ bank
             CPSR.Mode = Modes.M_IRQ
             if(CPSR.Thumb) {
-                cpu_reg_set(Regs.LR, PC + 2) //Store PC
-            } else {
                 cpu_reg_set(Regs.LR, PC) //Store PC
+            } else {
+                cpu_reg_set(Regs.LR, PC - 4) //Store PC
             }
             PC = 0x18 //Go to interurupt handler
-            cpu_reg_set(Regs.SPSR, u32(CPSR))
+            cpu_refetch32()
             CPSR.Thumb = false
             CPSR.IRQ = true
 
@@ -548,17 +545,22 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
         }
         cpu_reg_set(Rd, data)
         cycles = 3
-    } else { //STRH
-        value := cpu_reg_get(Rd)
-        bus_write16(address, u16(value))
-        cycles = 2
-        address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
-        if(W) {
-            if(Rn == Regs.PC) {
-                cpu_reg_set(Rn, address + 4)
-            } else {
-                cpu_reg_set(Rn, address)
+    } else {
+        switch(op) {
+        case 0x20: //STRH
+            value := cpu_reg_get(Rd)
+            bus_write16(address, u16(value))
+            cycles = 2
+            address = u32(i64(address) + (1 - i64(P)) * offset) //Post increment
+            if(W) {
+                if(Rn == Regs.PC) {
+                    cpu_reg_set(Rn, address + 4)
+                } else {
+                    cpu_reg_set(Rn, address)
+                }
             }
+        case 0x40, 0x60:
+            //Invalid for ARM7
         }
     }
     return cycles
@@ -990,11 +992,10 @@ cpu_b_bl :: proc(opcode: u32) -> u32 {
     L := utils_bit_get32(opcode, 24)
     if(L) { //BL
         cpu_reg_set(Regs.LR, PC - 4)
-        PC = u32(i32(PC) + i32(offset))
+        cpu_reg_set(Regs.PC, u32(i32(PC) + i32(offset)))
     } else { //B
-        PC = u32(i32(PC) + i32(offset))
+        cpu_reg_set(Regs.PC, u32(i32(PC) + i32(offset)))
     }
-    cpu_refetch32()
     return 3
 }
 
@@ -1002,11 +1003,10 @@ cpu_unknown_irq :: proc() {
     cpsr := CPSR
     CPSR.Mode = Modes.M_UNDEFINED
     cpu_reg_set(Regs.LR, PC - 4)
-    PC = 0x04
+    cpu_reg_set(Regs.PC, 0x04)
     cpu_reg_set(Regs.SPSR, u32(cpsr))
     CPSR.Thumb = false  //ARM mode
     CPSR.IRQ = true     //Disable interrupts
-    cpu_refetch32()
 }
 
 cpu_ldc_stc :: proc(opcode: u32) -> u32 {
@@ -1025,14 +1025,12 @@ cpu_mrc_mcr :: proc(opcode: u32) -> u32 {
 }
 
 cpu_swi :: proc() -> u32 {
-    cpsr := CPSR
+    regs[17][3] = u32(CPSR)
     CPSR.Mode = Modes.M_SUPERVISOR
-    cpu_reg_set(Regs.LR, PC - 4)
-    PC = 0x08
-    cpu_reg_set(Regs.SPSR, u32(cpsr))
     CPSR.Thumb = false  //ARM mode
     CPSR.IRQ = true     //Disable interrupts
-    cpu_refetch32()
+    cpu_reg_set(Regs.LR, PC - 4)
+    cpu_reg_set(Regs.PC, 0x08)
     return 3
 }
 
@@ -1703,13 +1701,7 @@ cpu_b_cond :: proc(opcode: u16) -> u32{
     case 14:
         do_jump = true
     case 15: //SWI
-        regs[17][3] = u32(CPSR)
-        CPSR.Mode = Modes.M_SUPERVISOR
-        CPSR.Thumb = false      //ARM mode
-        CPSR.IRQ = true         //Disable interrupts
-        cpu_reg_set(Regs.LR, PC - 4)
-        cpu_reg_set(Regs.PC, 0x08)
-        return 3
+        return cpu_swi()
     }
     if(do_jump) {
         offset = utils_sign_extend32(offset, 9)
