@@ -104,6 +104,10 @@ ppu_step :: proc(cycles: u32) -> bool {
             if(line_count >= 227) { //End of VBLANK, loop back
                 current_state = Ppu_states.DRAW
                 ppu_set_line(0)
+                bg := bus_get16(BG_PALETTE)
+                for i in 0..<len(screen_buffer) {
+                    screen_buffer[i] = bg
+                }
             } else {
                 current_state = Ppu_states.VBLANK_DRAW
                 ppu_set_line(line_count + 1)
@@ -217,8 +221,6 @@ ppu_draw_mode_4 :: proc(dispcnt: u16) {
         if(palette != 0) {
             data := bus_get16(BG_PALETTE + (u32(palette) * 2))
             screen_buffer[pixel] = data
-        } else {
-            screen_buffer[pixel] = bus_get16(BG_PALETTE)
         }
     }
 }
@@ -232,10 +234,8 @@ ppu_draw_mode_5 :: proc(dispcnt: u16) {
     for i :u32= 0; i < 240; i += 1 {
         pixel := (u32(line_count) * 240) + i
         if(line_count >= 128) {
-            screen_buffer[pixel] = bus_get16(BG_PALETTE)
             continue
         } else if(i >= 160) {
-            screen_buffer[pixel] = bus_get16(BG_PALETTE)
             continue
         } else {
             data := bus_get16(start + (pixel * 2))
