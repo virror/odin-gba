@@ -137,9 +137,9 @@ ppu_draw_mode_0 :: proc(dispcnt: u16) {
     obj_on := utils_bit_get16(dispcnt, 12)
 
     if(obj_on) {
-        for k :u32= 127; k == 0; k -= 1 {
-            attr := u64(bus_get32(OAM + k * 8))
-            attr += (u64(bus_get32(OAM + k * 8 + 4))) << 32
+        for k :i32= 127; k >= 0; k -= 1 {
+            attr := u64(bus_get32(OAM + u32(k) * 8))
+            attr += u64(bus_get32(OAM + u32(k) * 8 + 4)) << 32
 
             if(attr == 0) {
                 continue
@@ -341,6 +341,7 @@ ppu_draw_tiles :: proc(bg_index: u32) {
 
 ppu_draw_tiles_aff :: proc(bg_index: u32) {
     //Not implemented
+    fmt.println("af!")
 }
 
 ppu_draw_256_1 :: proc(tile: u16, tile_data: u32, y_in_tile: u16, x_in_tile: u32) -> u16 {
@@ -370,6 +371,36 @@ ppu_draw_16_16 :: proc(tile: u16, tile_data: u32, y_in_tile: u16, x_in_tile: u32
     return 0x8000
 }
 
+ppu_get_sprite_size :: proc(size: u64) -> (u8, u8) {
+    switch(size) {
+    case 0:
+        return 8, 8
+    case 1:
+        return 16, 16
+    case 2:
+        return 32, 32
+    case 3:
+        return 64, 64
+    case 4:
+        return 16, 8
+    case 5:
+        return 32, 8
+    case 6:
+        return 32, 16
+    case 7:
+        return 64, 32
+    case 8:
+        return 8, 16
+    case 9:
+        return 8, 32
+    case 10:
+        return 16, 32
+    case 11:
+        return 32, 64
+    }
+    return 8, 8
+}
+
 ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) {
     for k :u32= 0; k < length; k += 1 {
         sprite := sprites[k]
@@ -387,58 +418,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
         vflip := utils_bit_get64(sprite, 29)
         size := (sprite & 0xC0000000) >> 30
         size |= (sprite & 0xC000) >> 12
-        sizeX: u8
-        sizeY: u8
-        switch(size) {
-        case 0:
-            sizeX = 8
-            sizeY = 8
-            break
-        case 1:
-            sizeX = 16
-            sizeY = 16
-            break
-        case 2:
-            sizeX = 32
-            sizeY = 32
-            break
-        case 3:
-            sizeX = 64
-            sizeY = 64
-            break
-        case 4:
-            sizeX = 16
-            sizeY = 8
-            break
-        case 5:
-            sizeX = 32
-            sizeY = 8
-            break
-        case 6:
-            sizeX = 32
-            sizeY = 16
-            break
-        case 7:
-            sizeX = 64
-            sizeY = 32
-            break
-        case 8:
-            sizeX = 8
-            sizeY = 16
-            break
-        case 9:
-            sizeX = 8
-            sizeY = 32
-            break
-        case 10:
-            sizeX = 16
-            sizeY = 32
-            break
-        case 11:
-            sizeX = 32
-            sizeY = 64
-            break
-        }
+        sizeX, sizeY := ppu_get_sprite_size(size)
         sprite_index := u32((sprite & 0x3FF00000000) >> 32) * 32
         palette_index := u32((sprite & 0xF00000000000) >> 44) * 32
 
@@ -459,11 +439,10 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                 }
 
                 if(one_dimensional) {
-                    data = bus_get32(OVRAM + sprite_index + u32(x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 32 * tile_size_x))
+                    data = bus_get32(OVRAM + (sprite_index) + u32(x_tile) * 32 + u32((y_in_tile % 8) * 4) + (u32(y_in_tile / 8) * 32 * u32(tile_size_x)))
                 } else {
-                    data = bus_get32(OVRAM + sprite_index + u32(x_tile * 32) + u32((y_in_tile % 8) * 4) + u32((y_in_tile / 8) * 1024))
+                    data = bus_get32(OVRAM + (sprite_index) + u32(x_tile) * 32 + u32((y_in_tile % 8) * 4) + (u32(y_in_tile / 8) * 1024))
                 }
-
                 for i :u32= 0; i < 8; i += 1 {
                     x_in_tile := i
                     if(hflip) { //Flip X
@@ -479,6 +458,9 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                     if(palette_offset != 0) {
                         palette_offset += u32(palette_index)
                         pixel := (u32(line_count * 240) + x_pixel_offset)
+                        if(pixel >= 57600) {
+                            continue
+                        }
                         screen_buffer[pixel] = bus_read16(OB_PALETTE + palette_offset)
                     }
                 }
