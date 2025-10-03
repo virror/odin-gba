@@ -179,6 +179,8 @@ bus_write16 :: proc(addr: u32, value: u16) {
     when TEST_ENABLE {
         test_write32(addr, u32(value))
     } else {
+        addr := addr
+        addr &= 0xFFFFFFFE
         bus_write8(addr, u8(value & 0x00FF))
         bus_write8(addr + 1, u8((value & 0xFF00) >> 8))
     }
@@ -203,10 +205,10 @@ bus_set32 :: proc(addr: u32, value: u32) {
 }
 
 bus_read32 :: proc(addr: u32) -> u32 {
-    addr := addr
     when TEST_ENABLE {
         return test_read32(addr)
     } else {
+        addr := addr
         addr &= 0xFFFFFFFC
         value := u32(bus_read8(addr))
         value |= (u32(bus_read8(addr + 1)) << 8)
@@ -220,6 +222,8 @@ bus_write32 :: proc(addr: u32, value: u32) {
     when TEST_ENABLE {
         test_write32(addr, value)
     } else {
+        addr := addr
+        addr &= 0xFFFFFFFC
         bus_write8(addr, u8(value & 0x000000FF))
         bus_write8(addr + 1, u8((value & 0x0000FF00) >> 8))
         bus_write8(addr + 2, u8((value & 0x00FF0000) >> 16))
