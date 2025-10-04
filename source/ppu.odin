@@ -18,13 +18,33 @@ Ppu_states :: enum {
 cycle_count: u32
 line_count: u16
 current_state: Ppu_states
-dispstat: u16
 screen_buffer: [WIN_WIDTH * WIN_WIDTH]u16
+dispcnt: u16
+dispstat: u16
+vcount: u16
+bg0cnt: u16
+bg0hofs: u16
+bg0vofs: u16
+bg1cnt: u16
+bg1hofs: u16
+bg1vofs: u16
+bg2cnt: u16
+bg2hofs: u16
+bg2vofs: u16
+bg3cnt: u16
+bg3hofs: u16
+bg3vofs: u16
+
+win0h: u16
+win1h: u16
+win0v: u16
+win1v: u16
+winin: u16
+winout: u16
 
 ppu_step :: proc(cycles: u32) -> bool {
     ready_draw: bool
     cycle_count += cycles
-    dispstat = bus_get16(IO_DISPSTAT)
 
     if(stop) {
         return false
@@ -43,26 +63,25 @@ ppu_step :: proc(cycles: u32) -> bool {
             if(utils_bit_get16(dispstat, 4)) {
                 bus_irq_set(1)
             }
-            dispcnt := bus_get16(IO_DISPCNT)
             mode := dispcnt & 0x7
             switch(mode) {
             case 0:
-                ppu_draw_mode_0(dispcnt)
+                ppu_draw_mode_0()
                 break
             case 1:
-                ppu_draw_mode_1(dispcnt)
+                ppu_draw_mode_1()
                 break
             case 2:
-                ppu_draw_mode_2(dispcnt)
+                ppu_draw_mode_2()
                 break
             case 3:
                 ppu_draw_mode_3()
                 break
             case 4:
-                ppu_draw_mode_4(dispcnt)
+                ppu_draw_mode_4()
                 break
             case 5:
-                ppu_draw_mode_5(dispcnt)
+                ppu_draw_mode_5()
                 break
             }
         }
@@ -116,14 +135,13 @@ ppu_step :: proc(cycles: u32) -> bool {
         }
         break
     }
-    bus_set16(IO_DISPSTAT, dispstat)
     return ready_draw
 }
 
 ppu_set_line :: proc(count: u16) {
     line_count = count
-    vcount := (dispstat >> 8)
-    if(vcount == line_count) {
+    vcnt := (dispstat >> 8)
+    if(vcnt == line_count) {
         dispstat = utils_bit_set16(dispstat, 2)
         if(utils_bit_get16(dispstat, 5)) {
             bus_irq_set(2)
@@ -134,7 +152,7 @@ ppu_set_line :: proc(count: u16) {
     bus_set16(IO_VCOUNT, line_count)
 }
 
-ppu_draw_mode_0 :: proc(dispcnt: u16) {
+ppu_draw_mode_0 :: proc() {
     sprites: [4][128]u64
     length: [4]u32
     obj_map_1d := utils_bit_get16(dispcnt, 6)
@@ -181,7 +199,7 @@ ppu_draw_mode_0 :: proc(dispcnt: u16) {
     }
 }
 
-ppu_draw_mode_1 :: proc(dispcnt: u16) {
+ppu_draw_mode_1 :: proc() {
     if(utils_bit_get16(dispcnt, 10)) {
         ppu_draw_tiles_aff(2)
     }
@@ -193,7 +211,7 @@ ppu_draw_mode_1 :: proc(dispcnt: u16) {
     }
 }
 
-ppu_draw_mode_2 :: proc(dispcnt: u16) {
+ppu_draw_mode_2 :: proc() {
     if(utils_bit_get16(dispcnt, 11)) {
         ppu_draw_tiles_aff(3)
     }
@@ -210,7 +228,7 @@ ppu_draw_mode_3 :: proc() {
     }
 }
 
-ppu_draw_mode_4 :: proc(dispcnt: u16) {
+ppu_draw_mode_4 :: proc() {
     start := VRAM
     if(utils_bit_get16(dispcnt, 4)) {
         start += 0xA000
@@ -225,7 +243,7 @@ ppu_draw_mode_4 :: proc(dispcnt: u16) {
     }
 }
 
-ppu_draw_mode_5 :: proc(dispcnt: u16) {
+ppu_draw_mode_5 :: proc() {
     //TODO: Implement screen shift?
     start := VRAM
     if(utils_bit_get16(dispcnt, 4)) {
@@ -244,30 +262,43 @@ ppu_draw_mode_5 :: proc(dispcnt: u16) {
     }
 }
 
-ppu_draw_tiles :: proc(bg_index: u32) {
+ppu_is_inside_win :: proc(x: u16, y: u16, winh: u16, winv: u16) -> bool {
+    top := winv >> 8
+    bot := winv & 0xFF
+    left := winh >> 8
+    right := winh & 0xFF
+    if((x > left) && (x < right) && (y > top) && (y < bot)) {
+        return true
+    }
+    return false
+}
+
+ppu_draw_tiles :: proc(bg_index: u8) {
     bgcnt: u16
     bghofs: u16
     bgvofs: u16
+    win0_on := utils_bit_get16(dispcnt, 13)
+    win1_on := utils_bit_get16(dispcnt, 14)
     switch(bg_index) {
     case 0:
-        bgcnt = bus_get16(IO_BG0CNT)
-        bghofs = bus_get16(IO_BG0HOFS)
-        bgvofs = bus_get16(IO_BG0VOFS)
+        bgcnt = bg0cnt
+        bghofs = bg0hofs
+        bgvofs = bg0vofs
         break
     case 1:
-        bgcnt = bus_get16(IO_BG1CNT)
-        bghofs = bus_get16(IO_BG1HOFS)
-        bgvofs = bus_get16(IO_BG1VOFS)
+        bgcnt = bg1cnt
+        bghofs = bg1hofs
+        bgvofs = bg1vofs
         break
     case 2:
-        bgcnt = bus_get16(IO_BG2CNT)
-        bghofs = bus_get16(IO_BG2HOFS)
-        bgvofs = bus_get16(IO_BG2VOFS)
+        bgcnt = bg2cnt
+        bghofs = bg2hofs
+        bgvofs = bg2vofs
         break
     case 3:
-        bgcnt = bus_get16(IO_BG3CNT)
-        bghofs = bus_get16(IO_BG3HOFS)
-        bgvofs = bus_get16(IO_BG3VOFS)
+        bgcnt = bg3cnt
+        bghofs = bg3hofs
+        bgvofs = bg3vofs
         break
     }
 
@@ -309,6 +340,22 @@ ppu_draw_tiles :: proc(bg_index: u32) {
         x_in_tile := u32(x_coord % 8)
         tile: u16
 
+        if(utils_bit_get16(winout, bg_index)) {
+            if(ppu_is_inside_win(x_coord, y_coord, win0h, win0v) || ppu_is_inside_win(x_coord, y_coord, win1h, win1v)) {
+                continue
+            }
+        }
+        if(win1_on && utils_bit_get16(winin, bg_index + 8)) {
+            if (!ppu_is_inside_win(x_coord, y_coord, win1h, win1v) || ppu_is_inside_win(x_coord, y_coord, win0h, win0v)) {
+                continue
+            }
+        }
+        if(win0_on && utils_bit_get16(winin, bg_index)) {
+            if(!ppu_is_inside_win(x_coord, y_coord, win0h, win0v)) {
+                continue
+            }
+        }
+
         if(x_coord >= 256 && y_coord >= 256) {
             tile = bus_get16(map_data + u32((x_tile - 32) + ((y_tile - 32) * 32) + 3072) * 2)
         } else if(x_coord >= 256) {
@@ -339,7 +386,7 @@ ppu_draw_tiles :: proc(bg_index: u32) {
     }
 }
 
-ppu_draw_tiles_aff :: proc(bg_index: u32) {
+ppu_draw_tiles_aff :: proc(bg_index: u8) {
     //Not implemented
     fmt.println("af!")
 }
@@ -471,4 +518,131 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
 
 ppu_get_pixels :: proc() -> []u16 {
     return screen_buffer[:]
+}
+
+ppu_write :: proc(addr: u32, value: u8) {
+    switch(addr) {
+    case IO_DISPCNT:
+        dispcnt = u16(value)
+    case IO_DISPCNT + 1:
+        dispcnt |= u16(value) << 8
+    case IO_DISPSTAT:
+        dispstat = u16(value)
+    case IO_DISPSTAT + 1:
+        dispstat |= u16(value) << 8
+    case IO_BG0CNT:
+        bg0cnt = u16(value)
+    case IO_BG0CNT + 1:
+        bg0cnt |= u16(value) << 8
+    case IO_BG1CNT:
+        bg1cnt = u16(value)
+    case IO_BG1CNT + 1:
+        bg1cnt |= u16(value) << 8
+    case IO_BG2CNT:
+        bg2cnt = u16(value)
+    case IO_BG2CNT + 1:
+        bg2cnt |= u16(value) << 8
+    case IO_BG3CNT:
+        bg3cnt = u16(value)
+    case IO_BG3CNT + 1:
+        bg3cnt |= u16(value) << 8
+    case IO_BG0HOFS:
+        bg0hofs = u16(value)
+    case IO_BG0HOFS + 1:
+        bg0hofs |= u16(value) << 8
+    case IO_BG0VOFS:
+        bg0vofs = u16(value)
+    case IO_BG0VOFS + 1:
+        bg0vofs |= u16(value) << 8
+    case IO_BG1HOFS:
+        bg1hofs = u16(value)
+    case IO_BG1HOFS + 1:
+        bg1hofs |= u16(value) << 8
+    case IO_BG1VOFS:
+        bg1vofs = u16(value)
+    case IO_BG1VOFS + 1:
+        bg1vofs |= u16(value) << 8
+    case IO_BG2HOFS:
+        bg2hofs = u16(value)
+    case IO_BG2HOFS + 1:
+        bg2hofs |= u16(value) << 8
+    case IO_BG2VOFS:
+        bg2vofs = u16(value)
+    case IO_BG2VOFS + 1:
+        bg2vofs |= u16(value) << 8
+    case IO_BG3HOFS:
+        bg3hofs = u16(value)
+    case IO_BG3HOFS + 1:
+        bg3hofs |= u16(value) << 8
+    case IO_BG3VOFS:
+        bg3vofs = u16(value)
+    case IO_BG3VOFS + 1:
+        bg3vofs |= u16(value) << 8
+    case IO_WIN0H:
+        win0h = u16(value)
+    case IO_WIN0H + 1:
+        win0h |= u16(value) << 8
+    case IO_WIN1H:
+        win1h = u16(value)
+    case IO_WIN1H + 1:
+        win1h |= u16(value) << 8
+    case IO_WIN0V:
+        win0v = u16(value)
+    case IO_WIN0V + 1:
+        win0v |= u16(value) << 8
+    case IO_WIN1V:
+        win1v = u16(value)
+    case IO_WIN1V + 1:
+        win1v |= u16(value) << 8
+    case IO_WININ:
+        winin = u16(value)
+    case IO_WININ + 1:
+        winin |= u16(value) << 8
+    case IO_WINOUT:
+        winout = u16(value)
+    case IO_WINOUT + 1:
+        winout |= u16(value) << 8
+    }
+}
+
+ppu_read :: proc(addr: u32) -> u8 {
+    switch(addr) {
+    case IO_DISPCNT:
+        return u8(dispcnt)
+    case IO_DISPCNT + 1:
+        return u8(dispcnt >> 8)
+    case IO_DISPSTAT:
+         return u8(dispstat)
+    case IO_DISPSTAT + 1:
+        return u8(dispstat >> 8)
+    case IO_VCOUNT:
+         return u8(vcount)
+    case IO_VCOUNT + 1:
+        return u8(vcount >> 8)
+    case IO_BG0CNT:
+         return u8(bg0cnt)
+    case IO_BG0CNT + 1:
+        return u8(bg0cnt >> 8)
+    case IO_BG1CNT:
+         return u8(bg1cnt)
+    case IO_BG1CNT + 1:
+        return u8(bg1cnt >> 8)
+    case IO_BG2CNT:
+         return u8(bg2cnt)
+    case IO_BG2CNT + 1:
+        return u8(bg2cnt >> 8)
+    case IO_BG3CNT:
+         return u8(bg3cnt)
+    case IO_BG3CNT + 1:
+        return u8(bg3cnt >> 8)
+    case IO_WININ:
+         return u8(winin)
+    case IO_WININ + 1:
+        return u8(winin >> 8)
+    case IO_WINOUT:
+         return u8(winout)
+    case IO_WINOUT + 1:
+        return u8(winout >> 8)
+    }
+    return 0
 }

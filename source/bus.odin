@@ -59,8 +59,14 @@ bus_read8 :: proc(addr: u32) -> u8 {
         case 0x3000000: //WRAM
             addr &= 0x3007FFF
             break
-        //case 0x4000000: //IO
-        //    break
+        case 0x4000000: //IO
+            switch(addr) {
+            case 0x4000000..=4000054:
+                return ppu_read(addr)
+            case:
+                return mem[addr]
+            }
+            break
         case 0x5000000: //Palette RAM
             addr &= 0x50003FF
             break
@@ -106,8 +112,13 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             addr &= 0x3007FFF
             break
         case 0x4000000: //IO
-            if(!bus_handle_io(addr, value)) {
-                return
+            switch(addr) {
+            case 0x4000000..=0x4000054:
+                ppu_write(addr, value)
+            case:
+                if(!bus_handle_io(addr, value)) {
+                    return
+                }
             }
             break
         case 0x5000000: //Palette RAM
@@ -362,13 +373,6 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
             apu_trigger_noise()
         }
         break
-    case IO_DISPSTAT:
-        dispstat := mem[IO_DISPSTAT]
-        dispstat &= 0x07
-        value1 := value & 0xF8
-        dispstat |= value1
-        //TODO: Should save value and return 0?
-        break
     case IO_SOUNDCNT_H:
         // FIFO A reset
         if (value & 0x08) > 1 {
@@ -394,8 +398,7 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
         apu_load_fifo_b(mem[IO_FIFO_B_H + 1])
         break
     case IO_KEYINPUT,
-         IO_KEYINPUT + 1,
-         IO_VCOUNT:
+         IO_KEYINPUT + 1:
         return false // Read only
     }
     return true
