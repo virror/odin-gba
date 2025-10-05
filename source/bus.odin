@@ -63,6 +63,8 @@ bus_read8 :: proc(addr: u32) -> u8 {
             switch(addr) {
             case 0x4000000..=4000054:
                 return ppu_read(addr)
+            case 0x4000100..=0x4000110:
+                return tmr_read(addr)
             case:
                 return mem[addr]
             }
@@ -113,8 +115,10 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             break
         case 0x4000000: //IO
             switch(addr) {
-            case 0x4000000..=0x4000054:
+            case 0x4000000..=0x4000056:
                 ppu_write(addr, value)
+            case 0x4000100..=0x4000110:
+                tmr_write(addr, value)
             case:
                 if(!bus_handle_io(addr, value)) {
                     return
@@ -285,43 +289,6 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
     case IO_IF, IO_IF + 1:
         mem[addr] = (~value) & mem[addr]
         return false
-    //Timers
-    case IO_TM0CNT_L:
-        tmr_set_start_time(&timer0, value, false)
-        return false
-    case IO_TM0CNT_L + 1:
-        tmr_set_start_time(&timer0, value, true)
-        return false
-    case IO_TM0CNT_H:
-        tmr_set_control(&timer0, value)
-        break
-    case IO_TM1CNT_L:
-        tmr_set_start_time(&timer1, value, false)
-        return false
-    case IO_TM1CNT_L + 1:
-        tmr_set_start_time(&timer1, value, true)
-        return false
-    case IO_TM1CNT_H:
-        tmr_set_control(&timer1, value)
-        break
-    case IO_TM2CNT_L:
-        tmr_set_start_time(&timer2, value, false)
-        return false
-    case IO_TM2CNT_L + 1:
-        tmr_set_start_time(&timer2, value, true)
-        return false
-    case IO_TM2CNT_H:
-        tmr_set_control(&timer2, value)
-        break
-    case IO_TM3CNT_L:
-        tmr_set_start_time(&timer3, value, false)
-        return false
-    case IO_TM3CNT_L + 1:
-        tmr_set_start_time(&timer3, value, true)
-        return false
-    case IO_TM3CNT_H:
-        tmr_set_control(&timer3, value)
-        break
     case IO_DMA0CNT_H + 1:
         mem[addr] = value
         dma_set_data(&dma0)

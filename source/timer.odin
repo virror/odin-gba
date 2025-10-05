@@ -2,17 +2,22 @@ package main
 
 import "core:fmt"
 
+TMCNT :: bit_field u8 {
+    prescale: u8    |2,
+    count_up: bool  |1,
+    na: u8          |3,
+    enabled: bool   |1,
+    irq: bool       |1,
+}
+
 Timer :: struct {
     start_time: u16,
     counter: u32,
-    prescale: u16,
     prescale_cnt: u32,
-    count_up: bool,
-    irq: bool,
-    enabled: bool,
     old_enabled: bool,
     count_up_timer: ^Timer,
     index: u8,
+    tmcnt: TMCNT,
 }
 
 tmr_init :: proc(timer: ^Timer, index: u8) {
@@ -20,8 +25,8 @@ tmr_init :: proc(timer: ^Timer, index: u8) {
 }
 
 tmr_step :: proc(timer: ^Timer, cycles: u32) {
-    if(timer.enabled && !timer.count_up) { //Timer enabled and no count up
-        switch(timer.prescale) {
+    if(timer.tmcnt.enabled && !timer.tmcnt.count_up) { //Timer enabled and no count up
+        switch(timer.tmcnt.prescale) {
         case 0:
             tmr_increment(timer, cycles)
             break
@@ -51,7 +56,7 @@ tmr_step :: proc(timer: ^Timer, cycles: u32) {
 }
 
 tmr_step_count_up :: proc(timer: ^Timer, cycles: u32) {
-    if(timer.enabled) {
+    if(timer.tmcnt.enabled) {
         tmr_increment(timer, cycles)
     }
 }
@@ -61,10 +66,10 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
     if(timer.counter > 65535) { //Overflow
         timer.counter -= 65535
         timer.counter += u32(timer.start_time)
-        if((timer.count_up_timer != nil) && timer.count_up_timer.count_up) {
+        if((timer.count_up_timer != nil) && timer.count_up_timer.tmcnt.count_up) {
             tmr_step_count_up(timer.count_up_timer, 1)
         }
-        if(timer.irq) {
+        if(timer.tmcnt.irq) {
             iflags := bus_get16(IO_IF)
             iflags = utils_bit_set16(iflags, timer.index + 3)
             bus_set16(IO_IF, iflags)
@@ -76,7 +81,6 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
             apu_step_b()
         }
     }
-    bus_set16(IO_TM0CNT_L + u32(timer.index * 4), u16(timer.counter))
 }
 
 tmr_set_start_time :: proc(timer: ^Timer, value: u8, high_byte: bool) {
@@ -90,13 +94,76 @@ tmr_set_start_time :: proc(timer: ^Timer, value: u8, high_byte: bool) {
 }
 
 tmr_set_control :: proc(timer: ^Timer, value: u8) {
-    timer.prescale = u16(value) & 0x3
-    timer.count_up = utils_bit_get16(u16(value), 2)
-    timer.irq = utils_bit_get16(u16(value), 6)
-    timer.enabled = utils_bit_get16(u16(value), 7)
-    if(timer.enabled && (timer.enabled != timer.old_enabled)) {
+    timer.tmcnt = TMCNT(value)
+    if(timer.tmcnt.enabled && (timer.tmcnt.enabled != timer.old_enabled)) {
         timer.counter = u32(timer.start_time)
-        bus_set16(IO_TM0CNT_L + u32(timer.index * 4), timer.start_time)
-        timer.old_enabled = timer.enabled
+        timer.old_enabled = timer.tmcnt.enabled
     }
+}
+
+tmr_write :: proc(addr: u32, value: u8) {
+    switch(addr) {
+    case IO_TM0CNT_L:
+        timer0.start_time &= 0xFF00
+        timer0.start_time |= u16(value)
+    case IO_TM0CNT_L + 1:
+        timer0.start_time &= 0x00FF
+        timer0.start_time |= u16(value) << 8
+    case IO_TM0CNT_H:
+        tmr_set_control(&timer0, value)
+    case IO_TM1CNT_L:
+        timer1.start_time &= 0xFF00
+        timer1.start_time |= u16(value)
+    case IO_TM1CNT_L + 1:
+        timer1.start_time &= 0x00FF
+        timer1.start_time |= u16(value) << 8
+    case IO_TM1CNT_H:
+        tmr_set_control(&timer1, value)
+    case IO_TM2CNT_L:
+        timer2.start_time &= 0xFF00
+        timer2.start_time |= u16(value)
+    case IO_TM2CNT_L + 1:
+        timer2.start_time &= 0x00FF
+        timer2.start_time |= u16(value) << 8
+    case IO_TM2CNT_H:
+        tmr_set_control(&timer2, value)
+    case IO_TM3CNT_L:
+        timer3.start_time &= 0xFF00
+        timer3.start_time |= u16(value)
+    case IO_TM3CNT_L + 1:
+        timer3.start_time &= 0x00FF
+        timer3.start_time |= u16(value) << 8
+    case IO_TM3CNT_H:
+        tmr_set_control(&timer3, value)
+    }
+}
+
+tmr_read :: proc(addr: u32) -> u8 {
+    switch(addr) {
+    case IO_TM0CNT_L:
+        return u8(timer0.counter)
+    case IO_TM0CNT_L + 1:
+        return u8(timer0.counter >> 8)
+    case IO_TM0CNT_H:
+        return u8(timer0.tmcnt)
+    case IO_TM1CNT_L:
+        return u8(timer1.counter)
+    case IO_TM1CNT_L + 1:
+        return u8(timer1.counter >> 8)
+    case IO_TM1CNT_H:
+        return u8(timer1.tmcnt)
+    case IO_TM2CNT_L:
+        return u8(timer2.counter)
+    case IO_TM2CNT_L + 1:
+        return u8(timer2.counter >> 8)
+    case IO_TM2CNT_H:
+        return u8(timer2.tmcnt)
+    case IO_TM3CNT_L:
+        return u8(timer3.counter)
+    case IO_TM3CNT_L + 1:
+        return u8(timer3.counter >> 8)
+    case IO_TM3CNT_H:
+        return u8(timer3.tmcnt)
+    }
+    return 0
 }
