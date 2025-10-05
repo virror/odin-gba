@@ -65,6 +65,8 @@ bus_read8 :: proc(addr: u32) -> u8 {
                 return ppu_read(addr)
             case 0x4000100..=0x4000110:
                 return tmr_read(addr)
+            case 0x4000130..=0x4000132:
+                return input_read(addr)
             case:
                 return mem[addr]
             }
@@ -119,6 +121,8 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
                 ppu_write(addr, value)
             case 0x4000100..=0x4000110:
                 tmr_write(addr, value)
+            case 0x4000130..=4000132:
+                input_write(addr, value)
             case:
                 if(!bus_handle_io(addr, value)) {
                     return
@@ -364,9 +368,6 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
         apu_load_fifo_b(mem[IO_FIFO_B_H])
         apu_load_fifo_b(mem[IO_FIFO_B_H + 1])
         break
-    case IO_KEYINPUT,
-         IO_KEYINPUT + 1:
-        return false // Read only
     }
     return true
 }

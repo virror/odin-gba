@@ -149,7 +149,7 @@ ppu_set_line :: proc(count: u16) {
     } else {
         dispstat = utils_bit_clear16(dispstat, 2)
     }
-    bus_set16(IO_VCOUNT, line_count)
+    bus_set16(IO_VCOUNT, line_count)    //TODO: Investigate why set set
 }
 
 ppu_draw_mode_0 :: proc() {
