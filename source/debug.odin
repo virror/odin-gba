@@ -3,7 +3,7 @@ package main
 import "core:fmt"
 import sdl "vendor:sdl3"
 import sdlttf "vendor:sdl3/ttf"
-
+when(DEBUG) {
 font: ^sdlttf.Font
 
 debug_init :: proc() {
@@ -333,4 +333,7 @@ debug_get_thumb_names :: proc(opcode: u16) -> cstring {
         break
     }
     return op_name
+}
+} else {
+    debug_draw :: proc() {}
 }

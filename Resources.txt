@@ -14,3 +14,5 @@ FLASH info:
 https://dillonbeliveau.com/2020/06/05/GBA-FLASH.html
 Test references:
 https://github.com/jsmolka/gba-tests/tree/master/arm
+
+https://raddad772.github.io/2025/01/02/notes-on-GBA-PPU-windows-and-blending.html
