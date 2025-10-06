@@ -462,10 +462,10 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
         if(y_coord > 159) {
             y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
         }
-        bool rot_scale = bit_get(sprite, 8)
-        bool double_size = bit_get(sprite, 9)
-        //bool mosaic = bit_get(sprite, 12)
-        palette_256 := utils_bit_get16(u16(sprite), 13)
+        rot_scale := utils_bit_get64(sprite, 8)
+        double_size := utils_bit_get64(sprite, 9)
+        //mosaic := utils_bit_get64(sprite, 12)
+        palette_256 := utils_bit_get64(sprite, 13)
         if(!rot_scale && double_size) {
             fmt.println("Disabled sprite!")
         }
