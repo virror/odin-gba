@@ -11,6 +11,7 @@ WIN_WIDTH :: 240
 WIN_HEIGHT :: 160
 WIN_SCALE :: 2
 
+DEBUG :: false
 START_BIOS :: false
 ROM_PATH :: "tests/touhou_bad_apple.gba"
 
@@ -38,11 +39,6 @@ main :: proc() {
         panic("Failed to init SDL3!")
     }
     defer sdl.Quit()
-
-    if(!sdlttf.Init()) {
-        panic("Failed to init sdl3 ttf!")
-    }
-    defer sdlttf.Quit()
     
     init_controller()
 
@@ -55,15 +51,24 @@ main :: proc() {
     defer render_delete()
     update_viewport(WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE)
 
-    debug_window: ^sdl.Window
-    if(!sdl.CreateWindowAndRenderer("debug", 800, 600, sdl.WINDOW_OPENGL, &debug_window, &debug_render)) {
-        panic("Failed to create debug window")
-    }
-    assert(debug_window != nil, "Failed to create debug window")
-    defer sdl.DestroyWindow(debug_window)
-    defer sdl.DestroyRenderer(debug_render)
-    sdl.SetWindowPosition(debug_window, 700, 100)
+    when(DEBUG) {
+        if(!sdlttf.Init()) {
+            panic("Failed to init sdl3 ttf!")
+        }
+        defer sdlttf.Quit()
 
+        debug_window: ^sdl.Window
+        if(!sdl.CreateWindowAndRenderer("debug", 800, 600, sdl.WINDOW_OPENGL, &debug_window, &debug_render)) {
+            panic("Failed to create debug window")
+        }
+        assert(debug_window != nil, "Failed to create debug window")
+        defer sdl.DestroyWindow(debug_window)
+        defer sdl.DestroyRenderer(debug_render)
+        sdl.SetWindowPosition(debug_window, 700, 100)
+
+        debug_init()
+        defer debug_quit()
+    }
     // Audio stuff
     desired: sdl.AudioSpec
     desired.freq = 48000
@@ -74,9 +79,6 @@ main :: proc() {
     defer sdl.ClearAudioStream(audio_stream)
 
     assert(audio_stream != nil, "Failed to create audio device") // TODO: Handle error
-
-    debug_init()
-    defer debug_quit()
 
     bus_load_bios()
     cpu_init()
