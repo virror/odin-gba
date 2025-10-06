@@ -41,6 +41,10 @@ win0v: u16
 win1v: u16
 winin: u16
 winout: u16
+mosaic: u16
+bldcnt: u16
+bldalpha: u16
+bldy: u16
 
 ppu_step :: proc(cycles: u32) -> bool {
     ready_draw: bool
@@ -149,7 +153,7 @@ ppu_set_line :: proc(count: u16) {
     } else {
         dispstat = utils_bit_clear16(dispstat, 2)
     }
-    bus_set16(IO_VCOUNT, line_count)    //TODO: Investigate why set set
+    vcount = line_count
 }
 
 ppu_draw_mode_0 :: proc() {
@@ -388,7 +392,7 @@ ppu_draw_tiles :: proc(bg_index: u8) {
 
 ppu_draw_tiles_aff :: proc(bg_index: u8) {
     //Not implemented
-    fmt.println("af!")
+    fmt.println("af tiles!")
 }
 
 ppu_draw_256_1 :: proc(tile: u16, tile_data: u32, y_in_tile: u16, x_in_tile: u32) -> u16 {
@@ -458,10 +462,16 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
         if(y_coord > 159) {
             y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
         }
-        //bool rot_scale = bit_get(sprite, 8)
-        //bool double_size = bit_get(sprite, 9)
+        bool rot_scale = bit_get(sprite, 8)
+        bool double_size = bit_get(sprite, 9)
         //bool mosaic = bit_get(sprite, 12)
         palette_256 := utils_bit_get16(u16(sprite), 13)
+        if(!rot_scale && double_size) {
+            fmt.println("Disabled sprite!")
+        }
+        if(rot_scale) {
+            fmt.println("Aff sprite!")
+        }
         if(palette_256) {
             fmt.println("256 sprite!")
         }
@@ -624,6 +634,22 @@ ppu_write :: proc(addr: u32, value: u8) {
         winout = u16(value)
     case IO_WINOUT + 1:
         winout |= u16(value) << 8
+    case IO_MOSAIC:
+        mosaic = u16(value)
+    case IO_MOSAIC + 1:
+        mosaic |= u16(value) << 8
+    case IO_BLDCNT:
+        bldcnt = u16(value)
+    case IO_BLDCNT + 1:
+        bldcnt |= u16(value) << 8
+    case IO_BLDALPHA:
+        bldalpha = u16(value)
+    case IO_BLDALPHA + 1:
+        bldalpha |= u16(value) << 8
+    case IO_BLDY:
+        bldy = u16(value)
+    case IO_BLDY + 1:
+        bldy |= u16(value) << 8
     }
 }
 
@@ -644,11 +670,11 @@ ppu_read :: proc(addr: u32) -> u8 {
     case IO_BG0CNT:
          return u8(bg0cnt)
     case IO_BG0CNT + 1:
-        return u8(bg0cnt >> 8)
+        return u8(bg0cnt >> 8) & 0xDF
     case IO_BG1CNT:
          return u8(bg1cnt)
     case IO_BG1CNT + 1:
-        return u8(bg1cnt >> 8)
+        return u8(bg1cnt >> 8) & 0xDF
     case IO_BG2CNT:
          return u8(bg2cnt)
     case IO_BG2CNT + 1:
@@ -658,13 +684,25 @@ ppu_read :: proc(addr: u32) -> u8 {
     case IO_BG3CNT + 1:
         return u8(bg3cnt >> 8)
     case IO_WININ:
-         return u8(winin)
+         return u8(winin) & 0x3F
     case IO_WININ + 1:
-        return u8(winin >> 8)
+        return u8(winin >> 8) & 0x3F
     case IO_WINOUT:
-         return u8(winout)
+         return u8(winout) & 0x3F
     case IO_WINOUT + 1:
-        return u8(winout >> 8)
+        return u8(winout >> 8) & 0x3F
+    case IO_BLDCNT:
+         return u8(bldcnt)
+    case IO_BLDCNT + 1:
+        return u8(bldcnt >> 8) & 0x3F
+    case IO_BLDALPHA:
+         return u8(bldalpha) & 0x1F
+    case IO_BLDALPHA + 1:
+        return u8(bldalpha >> 8) & 0x1F
     }
-    return 0
+    if((addr & 1) > 0) {
+        return 0xDE
+    } else {
+        return 0xAD
+    }
 }

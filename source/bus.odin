@@ -61,7 +61,7 @@ bus_read8 :: proc(addr: u32) -> u8 {
             break
         case 0x4000000: //IO
             switch(addr) {
-            case 0x4000000..=4000054:
+            case 0x4000000..=0x400005F:
                 return ppu_read(addr)
             case 0x4000100..=0x4000110:
                 return tmr_read(addr)
@@ -117,11 +117,11 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             break
         case 0x4000000: //IO
             switch(addr) {
-            case 0x4000000..=0x4000056:
+            case 0x4000000..=0x400005F:
                 ppu_write(addr, value)
             case 0x4000100..=0x4000110:
                 tmr_write(addr, value)
-            case 0x4000130..=4000132:
+            case 0x4000130..=0x4000132:
                 input_write(addr, value)
             case:
                 if(!bus_handle_io(addr, value)) {
