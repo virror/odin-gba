@@ -70,9 +70,7 @@ tmr_increment :: proc(timer: ^Timer, cycles: u32) {
             tmr_step_count_up(timer.count_up_timer, 1)
         }
         if(timer.tmcnt.irq) {
-            iflags := bus_get16(IO_IF)
-            iflags = utils_bit_set16(iflags, timer.index + 3)
-            bus_set16(IO_IF, iflags)
+            bus_irq_set(timer.index + 3)
         }
         if(apu_a_timer() == timer.index) {
             apu_step_a()

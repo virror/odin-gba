@@ -9,9 +9,9 @@ import "core:os"
     FLASH,
 }
 
-mem: [0xE010000]u8
+mem: [0xFFFFFFF]u8
 ram_write: bool
-save_type: Save_type
+save_type: Save_type = .SRAM
 
 bus_load_bios :: proc() {
     file, err := os.open("gba_bios.bin", os.O_RDONLY)
@@ -37,7 +37,7 @@ bus_set8 :: proc(addr: u32, value: u8) {
     mem[addr] = value
 }
 
-bus_read8 :: proc(addr: u32) -> u8 {
+bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
     when TEST_ENABLE {
         return u8(test_read32(addr))
     } else {
@@ -45,12 +45,15 @@ bus_read8 :: proc(addr: u32) -> u8 {
         addr_id := addr & 0xF000000
         switch(addr_id) {
         case 0x0000000: //BIOS
-            // BIOS is read protected, when trying to read from BIOS, the last read value will be returned.
-            //return last_bios_value
             if((addr >= 0x00004000 && addr < 0x02000000) || addr >= 0x10000000) {
                 //TODO: Return whats on the bus, e.g recently fetched opcode for ARM, more complicated for THUMB
-                fmt.println("Fix read of out bounds")
-                return 0x0
+                return 0xEF
+            }
+            // BIOS is read protected when PC is outside of it
+            if(PC >= 0x00004000) {
+                return 0xAF
+            } else {
+                last_bios_value = mem[addr]
             }
             break
         case 0x2000000: //WRAM
@@ -131,6 +134,12 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             break
         case 0x5000000: //Palette RAM
             addr &= 0x50003FF
+            if width == 1 { //TODO: Hacky fix, do a better job at implementing,
+                addr &= 0xFFFFFFFE
+                mem[addr] = value
+                mem[addr + 1] = value
+                return
+            }
             break
         case 0x6000000: //VRAM
             addr &= 0x601FFFF
@@ -138,7 +147,6 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
                 addr -= 0x8000
             }
             if width == 1 { //TODO: Hacky fix, do a better job at implementing,
-                            //see: https://problemkaputt.de/gbatek.htm#gbaunpredictablethings - "Writing 8bit Data to Video Memory"
                 addr &= 0xFFFFFFFE
                 mem[addr] = value
                 mem[addr + 1] = value
@@ -195,8 +203,8 @@ bus_read16 :: proc(addr: u32) -> u16 {
     } else {
         addr := addr
         addr &= 0xFFFFFFFE
-        value := u16(bus_read8(addr))
-        value |= (u16(bus_read8(addr + 1))) << 8
+        value := u16(bus_read8(addr, 2))
+        value |= (u16(bus_read8(addr + 1, 2))) << 8
         return value
     }
 }
@@ -236,10 +244,10 @@ bus_read32 :: proc(addr: u32) -> u32 {
     } else {
         addr := addr
         addr &= 0xFFFFFFFC
-        value := u32(bus_read8(addr))
-        value |= (u32(bus_read8(addr + 1)) << 8)
-        value |= (u32(bus_read8(addr + 2)) << 16)
-        value |= (u32(bus_read8(addr + 3)) << 24)
+        value := u32(bus_read8(addr, 4))
+        value |= (u32(bus_read8(addr + 1, 4)) << 8)
+        value |= (u32(bus_read8(addr + 2, 4)) << 16)
+        value |= (u32(bus_read8(addr + 3, 4)) << 24)
         return value
     }
 }

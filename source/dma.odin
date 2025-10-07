@@ -19,6 +19,7 @@ Dma :: struct {
     repeat: bool,
     drq: bool,
     irq: bool,
+    idx: u32,
 }
 
 dma_init :: proc(dma: ^Dma, index: u32) {
@@ -26,6 +27,7 @@ dma_init :: proc(dma: ^Dma, index: u32) {
     dma.dst_reg = IO_DMA0DAD + index * 12
     dma.cnt_reg = IO_DMA0CNT_L + index * 12
     dma.ctrl_reg = IO_DMA0CNT_H + index * 12
+    dma.idx = index
 }
 
 dma_set_data :: proc(dma: ^Dma) {
@@ -42,8 +44,8 @@ dma_set_data :: proc(dma: ^Dma) {
 
     if(dma.enabled && (dma.enabled != dma.old_enabled)) {
         dma.old_enabled = dma.enabled
-        dma.int_src_reg = bus_get32(dma.src_reg)
-        dma.int_dst_reg = bus_get32(dma.dst_reg)
+        dma.int_src_reg = bus_read32(dma.src_reg)
+        dma.int_dst_reg = bus_read32(dma.dst_reg)
         if(dma.mode == 0) {
             dma_single_transfer(dma)
         }
@@ -96,10 +98,19 @@ dma_single_transfer :: proc(dma: ^Dma) {
         src &= 0xFFFFFFFE
     }
 
-    cnt := bus_get16(dma.cnt_reg)
+    cnt := u32(bus_get16(dma.cnt_reg))
+    if(dma.idx == 0) {
+        src &= 0x7FFFFFF
+        cnt = min(cnt, 0x4000)
+    } else {
+        cnt = min(cnt, 0x10000)
+    }
+    if(dma.idx != 3) {
+        dst &= 0x7FFFFFF
+    }
 
-    for i :u16= 0; i < cnt; i += 1 {
-        if (dma.dma_32) {
+    for i :u32= 0; i < cnt; i += 1 {
+        if(dma.dma_32) {
             bus_write32(dst, bus_read32(src))
         } else {
             bus_write16(dst, bus_read16(src))
