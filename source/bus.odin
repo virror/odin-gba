@@ -53,7 +53,7 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
             if(PC >= 0x00004000) {
                 return 0xAF
             } else {
-                last_bios_value = mem[addr]
+                //last_bios_value = mem[addr]
             }
             break
         case 0x2000000: //WRAM
@@ -66,6 +66,8 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
             switch(addr) {
             case 0x4000000..=0x400005F:
                 return ppu_read(addr)
+            case 0x40000B0..=0x40000FF:
+                return dma_read(addr)
             case 0x4000100..=0x4000110:
                 return tmr_read(addr)
             case 0x4000130..=0x4000132:
@@ -122,6 +124,8 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             switch(addr) {
             case 0x4000000..=0x400005F:
                 ppu_write(addr, value)
+            case 0x40000B0..=0x40000FF:
+                dma_write(addr, value)
             case 0x4000100..=0x4000110:
                 tmr_write(addr, value)
             case 0x4000130..=0x4000132:
@@ -300,22 +304,6 @@ bus_handle_io :: proc(addr: u32, value: u8) -> bool {
     //Interrupts - Writing one resets the flag
     case IO_IF, IO_IF + 1:
         mem[addr] = (~value) & mem[addr]
-        return false
-    case IO_DMA0CNT_H + 1:
-        mem[addr] = value
-        dma_set_data(&dma0)
-        return false
-    case IO_DMA1CNT_H + 1:
-        mem[addr] = value
-        dma_set_data(&dma1)
-        return false
-    case IO_DMA2CNT_H + 1:
-        mem[addr] = value
-        dma_set_data(&dma2)
-        return false
-    case IO_DMA3CNT_H + 1:
-        mem[addr] = value
-        dma_set_data(&dma3)
         return false
     case IO_HALTCNT:
         if(utils_bit_get16(u16(value), 7)) {

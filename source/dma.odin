@@ -149,3 +149,56 @@ dma_transfer_h_blank :: proc(dma: ^Dma) {
         dma_single_transfer(dma)
     }
 }
+
+dma_read :: proc(addr: u32) -> u8 {
+    switch(addr) {
+    case IO_DMA0CNT_L,
+         IO_DMA0CNT_L + 1,
+         IO_DMA1CNT_L,
+         IO_DMA1CNT_L + 1,
+         IO_DMA2CNT_L,
+         IO_DMA2CNT_L + 1,
+         IO_DMA3CNT_L,
+         IO_DMA3CNT_L + 1:
+        return 0
+    case IO_DMA0CNT_H,
+         IO_DMA1CNT_H,
+         IO_DMA2CNT_H,
+         IO_DMA3CNT_H:
+        return bus_get8(addr) & 0xE0
+    case IO_DMA0CNT_H + 1,
+         IO_DMA1CNT_H + 1,
+         IO_DMA2CNT_H + 1:
+        return bus_get8(addr) & 0xF7
+    case IO_DMA3CNT_H + 1:
+        return bus_get8(addr)
+        if((addr & 1) > 0) {
+            return 0xDE
+        } else {
+            return 0xAD
+        }
+    }
+    if(addr > 0x40000DF) {
+        if((addr & 1) > 0) {
+            return 0xDE
+        } else {
+            return 0xAD
+        }
+    } else {
+        return bus_get8(addr)
+    }
+}
+
+dma_write :: proc(addr: u32, value: u8) {
+    bus_set8(addr, value)
+    switch(addr) {
+    case IO_DMA0CNT_H + 1:
+        dma_set_data(&dma0)
+    case IO_DMA1CNT_H + 1:
+        dma_set_data(&dma1)
+    case IO_DMA2CNT_H + 1:
+        dma_set_data(&dma2)
+    case IO_DMA3CNT_H + 1:
+        dma_set_data(&dma3)
+    }
+}
