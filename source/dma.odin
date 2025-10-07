@@ -44,8 +44,8 @@ dma_set_data :: proc(dma: ^Dma) {
 
     if(dma.enabled && (dma.enabled != dma.old_enabled)) {
         dma.old_enabled = dma.enabled
-        dma.int_src_reg = bus_read32(dma.src_reg)
-        dma.int_dst_reg = bus_read32(dma.dst_reg)
+        dma.int_src_reg = bus_get32(dma.src_reg)
+        dma.int_dst_reg = bus_get32(dma.dst_reg)
         if(dma.mode == 0) {
             dma_single_transfer(dma)
         }
@@ -173,14 +173,10 @@ dma_read :: proc(addr: u32) -> u8 {
     case IO_DMA3CNT_H + 1:
         return bus_get8(addr)
     }
-    if(addr > 0x40000DF) {
-        if((addr & 1) > 0) {
-            return 0xDE
-        } else {
-            return 0xAD
-        }
+    if((addr & 1) > 0) {
+        return 0xDE
     } else {
-        return bus_get8(addr)
+        return 0xAD
     }
 }
 
