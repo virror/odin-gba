@@ -172,11 +172,6 @@ dma_read :: proc(addr: u32) -> u8 {
         return bus_get8(addr) & 0xF7
     case IO_DMA3CNT_H + 1:
         return bus_get8(addr)
-        if((addr & 1) > 0) {
-            return 0xDE
-        } else {
-            return 0xAD
-        }
     }
     if(addr > 0x40000DF) {
         if((addr & 1) > 0) {

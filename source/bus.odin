@@ -66,6 +66,8 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
             switch(addr) {
             case 0x4000000..=0x400005F:
                 return ppu_read(addr)
+            case 0x4000060..=0x40000AF:
+                return apu_read(addr)
             case 0x40000B0..=0x40000FF:
                 return dma_read(addr)
             case 0x4000100..=0x4000110:
@@ -124,18 +126,28 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             switch(addr) {
             case 0x4000000..=0x400005F:
                 ppu_write(addr, value)
+            case 0x4000060..=0x40000AF:
+                apu_write(addr, value)
             case 0x40000B0..=0x40000FF:
                 dma_write(addr, value)
             case 0x4000100..=0x4000110:
                 tmr_write(addr, value)
             case 0x4000130..=0x4000132:
                 input_write(addr, value)
-            case:
-                if(!bus_handle_io(addr, value)) {
-                    return
+            case IO_IF, IO_IF + 1:
+                mem[addr] = (~value) & mem[addr]
+            case IO_IME:
+                mem[addr] = value
+            case IO_HALTCNT:
+                if(utils_bit_get16(u16(value), 7)) {
+                    stop = true
+                } else {
+                    halt = true
                 }
+            case:
+                mem[addr] = value
             }
-            break
+            return
         case 0x5000000: //Palette RAM
             addr &= 0x50003FF
             if width == 1 { //TODO: Hacky fix, do a better job at implementing,
@@ -297,73 +309,4 @@ bus_load_ram :: proc() {
         }
         ram_file.close()
     }*/
-}
-
-bus_handle_io :: proc(addr: u32, value: u8) -> bool {
-    switch(addr) {
-    //Interrupts - Writing one resets the flag
-    case IO_IF, IO_IF + 1:
-        mem[addr] = (~value) & mem[addr]
-        return false
-    case IO_HALTCNT:
-        if(utils_bit_get16(u16(value), 7)) {
-            stop = true
-        } else {
-            halt = true
-        }
-        return false
-    case IO_SOUND1CNT_H: // -> length
-        apu_load_length_counter_square1(value & 0x3f)
-        mem[addr] = value // TODO: remove?
-        break
-    case IO_SOUND1CNT_X + 1: // -> trigger
-        if (value & 0x80) > 1 {
-            apu_trigger_square1()
-        }
-        mem[addr] = value
-        break
-    case IO_SOUND2CNT_L: // -> length
-        apu_load_length_counter_square2(value & 0x3f)
-        // TODO: read ones?
-        break
-    case IO_SOUND2CNT_H + 1: // -> trigger
-        if (value & 0x80) > 1 {
-            apu_trigger_square2()
-        }
-        break
-    case IO_SOUND4CNT_L: // -> length
-        apu_load_length_counter_noise(value & 0x3f)
-        // TODO: read ones?
-        break
-    case IO_SOUND4CNT_H + 1: // -> trigger
-        if (value & 0x80) > 0 {
-            apu_trigger_noise()
-        }
-        break
-    case IO_SOUNDCNT_H:
-        // FIFO A reset
-        if (value & 0x08) > 1 {
-            apu_reset_fifo_a()
-        }
-        // FIFO B reset
-        if (value & 0x80) > 1 {
-            apu_reset_fifo_b()
-        }
-        break
-    // Last byte of FIFO A
-    case IO_FIFO_A_H + 1:
-        apu_load_fifo_a(mem[IO_FIFO_A_L])
-        apu_load_fifo_a(mem[IO_FIFO_A_L + 1])
-        apu_load_fifo_a(mem[IO_FIFO_A_H])
-        apu_load_fifo_a(mem[IO_FIFO_A_H + 1])
-        break
-    // Last byte of FIFO B
-    case IO_FIFO_B_H + 1:
-        apu_load_fifo_b(mem[IO_FIFO_B_L])
-        apu_load_fifo_b(mem[IO_FIFO_B_L + 1])
-        apu_load_fifo_b(mem[IO_FIFO_B_H])
-        apu_load_fifo_b(mem[IO_FIFO_B_H + 1])
-        break
-    }
-    return true
 }

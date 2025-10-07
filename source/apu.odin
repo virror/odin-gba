@@ -453,6 +453,134 @@ apu_output :: proc() -> f32 {
     if(mem[IO_SOUNDCNT_H + 1] & 0x30) > 0 {
         out += f32(i16(direct_sound_b_out) + 128) / 128.0
     }
-
     return out - 1.0
+}
+
+apu_read :: proc(addr: u32) -> u8 {
+    switch(addr) {
+    case IO_SOUND1CNT_L:
+        return bus_get8(addr) & 0x7F
+    case IO_SOUND1CNT_L + 1:
+        return 0
+    case IO_SOUND1CNT_H:
+        return bus_get8(addr) & 0xC0
+    case IO_SOUND1CNT_H + 1:
+        return bus_get8(addr)
+    case IO_SOUND1CNT_X:
+        return 0
+    case IO_SOUND1CNT_X + 1:
+        return bus_get8(addr) & 0x40
+    case IO_SOUND2CNT_L:
+        return bus_get8(addr) & 0xC0
+    case IO_SOUND2CNT_L + 1:
+        return bus_get8(addr)   
+    case IO_SOUND2CNT_H:
+        return 0
+    case IO_SOUND2CNT_H + 1:
+        return bus_get8(addr) & 0x40
+    case IO_SOUND3CNT_L:
+        return bus_get8(addr) & 0xE0
+    case IO_SOUND3CNT_L + 1:
+        return 0
+    case IO_SOUND3CNT_H:
+        return 0
+    case IO_SOUND3CNT_H + 1:
+        return bus_get8(addr) & 0xE0
+    case IO_SOUND3CNT_X:
+        return 0
+    case IO_SOUND3CNT_X + 1:
+        return bus_get8(addr) & 0x40
+    case IO_SOUND4CNT_L:
+        return 0
+    case IO_SOUND4CNT_L + 1:
+        return bus_get8(addr)   
+    case IO_SOUND4CNT_H:
+        return bus_get8(addr)
+    case IO_SOUND4CNT_H + 1:
+        return bus_get8(addr) & 0x40
+    case IO_SOUNDCNT_L:
+        return bus_get8(addr) & 0x77
+    case IO_SOUNDCNT_L + 1:
+        return bus_get8(addr)
+    case IO_SOUNDCNT_H:
+        return bus_get8(addr) & 0x0F
+    case IO_SOUNDCNT_H + 1:
+        return bus_get8(addr) & 0x77
+    case IO_SOUNDCNT_X:
+        return bus_get8(addr) & 0x80
+    case IO_SOUNDCNT_X + 1:
+        return 0
+    case 0x400008C,
+         0x400008E,
+         0x40000A8,
+         0x40000AA,
+         0x40000AC,
+         0x40000AE,
+         IO_FIFO_A_L,
+         IO_FIFO_A_H,
+         IO_FIFO_B_L,
+         IO_FIFO_B_H:
+        return 0xAD
+    case 0x400008D,
+         0x400008F,
+         0x40000A9,
+         0x40000AB,
+         0x40000AD,
+         0x40000AF,
+         IO_FIFO_A_L + 1,
+         IO_FIFO_A_H + 1,
+         IO_FIFO_B_L + 1,
+         IO_FIFO_B_H + 1:
+        return 0xDE
+    case IO_WAVE_RAM..=IO_WAVE_RAM + 15:
+        return 0xFF
+    }
+    return 0
+}
+
+apu_write :: proc(addr: u32, value: u8) {
+    mem[addr] = value
+    switch(addr) {
+    case IO_SOUND1CNT_H: // -> length
+        apu_load_length_counter_square1(value & 0x3f)
+    case IO_SOUND1CNT_X + 1: // -> trigger
+        if (value & 0x80) > 1 {
+            apu_trigger_square1()
+        }
+    case IO_SOUND2CNT_L: // -> length
+        apu_load_length_counter_square2(value & 0x3f)
+        // TODO: read ones?
+    case IO_SOUND2CNT_H + 1: // -> trigger
+        if (value & 0x80) > 1 {
+            apu_trigger_square2()
+        }
+    case IO_SOUND4CNT_L: // -> length
+        apu_load_length_counter_noise(value & 0x3f)
+        // TODO: read ones?
+    case IO_SOUND4CNT_H + 1: // -> trigger
+        if (value & 0x80) > 0 {
+            apu_trigger_noise()
+        }
+    case IO_SOUNDCNT_H:
+        // FIFO A reset
+        if (value & 0x08) > 1 {
+            apu_reset_fifo_a()
+        }
+        // FIFO B reset
+        if (value & 0x80) > 1 {
+            apu_reset_fifo_b()
+        }
+    // Last byte of FIFO A
+    case IO_FIFO_A_H + 1:
+        apu_load_fifo_a(mem[IO_FIFO_A_L])
+        apu_load_fifo_a(mem[IO_FIFO_A_L + 1])
+        apu_load_fifo_a(mem[IO_FIFO_A_H])
+        apu_load_fifo_a(mem[IO_FIFO_A_H + 1])
+    // Last byte of FIFO B
+    case IO_FIFO_B_H + 1:
+        apu_load_fifo_b(mem[IO_FIFO_B_L])
+        apu_load_fifo_b(mem[IO_FIFO_B_L + 1])
+        apu_load_fifo_b(mem[IO_FIFO_B_H])
+        apu_load_fifo_b(mem[IO_FIFO_B_H + 1])
+    }
 }
