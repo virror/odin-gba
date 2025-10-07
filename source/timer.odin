@@ -6,8 +6,8 @@ TMCNT :: bit_field u8 {
     prescale: u8    |2,
     count_up: bool  |1,
     na: u8          |3,
-    enabled: bool   |1,
     irq: bool       |1,
+    enabled: bool   |1,
 }
 
 Timer :: struct {
