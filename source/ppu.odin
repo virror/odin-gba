@@ -453,8 +453,8 @@ ppu_get_sprite_size :: proc(size: u64) -> (u8, u8) {
 }
 
 ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) {
-    win0_on := utils_bit_get16(dispcnt, 13)
-    win1_on := utils_bit_get16(dispcnt, 14)
+    //win0_on := utils_bit_get16(dispcnt, 13)
+    //win1_on := utils_bit_get16(dispcnt, 14)
 
     for k :u32= 0; k < length; k += 1 {
         sprite := sprites[k]
@@ -513,7 +513,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                     }
                     x_pixel_offset := u16(x_coord) + (j * 8) + u16(i)
 
-                    if(utils_bit_get16(winout, 4)) {
+                    /*if(utils_bit_get16(winout, 4)) {
                         if(ppu_is_inside_win(x_pixel_offset, line_count, win0h, win0v) || ppu_is_inside_win(x_pixel_offset, line_count, win1h, win1v)) {
                             continue
                         }
@@ -527,7 +527,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                         if(!ppu_is_inside_win(x_pixel_offset, line_count, win0h, win0v)) {
                             continue
                         }
-                    }
+                    }*/
 
                     palette_mask :u32= 0x0000000F << (x_in_tile * 4)
                     palette_offset := ((data & palette_mask) >> (x_in_tile * 4)) * 2
