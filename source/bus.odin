@@ -63,6 +63,7 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
             addr &= 0x3007FFF
             break
         case 0x4000000: //IO
+            addr &= 0x40007FF
             switch(addr) {
             case 0x4000000..=0x400005F:
                 return ppu_read(addr)
@@ -72,8 +73,12 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
                 return dma_read(addr)
             case 0x4000100..=0x4000110:
                 return tmr_read(addr)
+            case 0x4000120..=0x400012F:
+                return srl_read(addr)
             case 0x4000130..=0x4000132:
                 return input_read(addr)
+            case 0x4000134..=0x40001FF:
+                return srl_read(addr)
             case:
                 return mem[addr]
             }
@@ -123,6 +128,7 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
             addr &= 0x3007FFF
             break
         case 0x4000000: //IO
+            addr &= 0x40007FF
             switch(addr) {
             case 0x4000000..=0x400005F:
                 ppu_write(addr, value)
@@ -132,8 +138,12 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
                 dma_write(addr, value)
             case 0x4000100..=0x4000110:
                 tmr_write(addr, value)
+            case 0x4000120..=0x400012F:
+                srl_write(addr, value)
             case 0x4000130..=0x4000132:
                 input_write(addr, value)
+            case 0x4000134..=0x40001FF:
+                srl_write(addr, value)
             case IO_IF, IO_IF + 1:
                 mem[addr] = (~value) & mem[addr]
             case IO_IME:
