@@ -18,6 +18,7 @@ Ppu_states :: enum {
 cycle_count: u32
 line_count: u16
 current_state: Ppu_states
+@(private="file")
 screen_buffer: [WIN_WIDTH * WIN_WIDTH]u16
 dispcnt: u16
 dispstat: u16
@@ -129,7 +130,7 @@ ppu_step :: proc(cycles: u32) -> bool {
                 ppu_set_line(0)
                 bg := bus_get16(BG_PALETTE)
                 for i in 0..<len(screen_buffer) {
-                    screen_buffer[i] = bg
+                    ppu_set_pixel(bg, u32(i))
                 }
             } else {
                 current_state = Ppu_states.VBLANK_DRAW
@@ -228,7 +229,7 @@ ppu_draw_mode_3 :: proc() {
     for i :u32= 0; i < 240; i += 1 {
         pixel := (u32(line_count) * 240) + i
         data := bus_get16(VRAM + pixel * 2)
-        screen_buffer[pixel] = data
+        ppu_set_pixel(data, pixel)
     }
 }
 
@@ -242,7 +243,7 @@ ppu_draw_mode_4 :: proc() {
         palette := bus_get8(start + pixel)
         if(palette != 0) {
             data := bus_get16(BG_PALETTE + (u32(palette) * 2))
-            screen_buffer[pixel] = data
+            ppu_set_pixel(data, pixel)
         }
     }
 }
@@ -261,7 +262,7 @@ ppu_draw_mode_5 :: proc() {
             continue
         } else {
             data := bus_get16(start + (pixel * 2))
-            screen_buffer[pixel] = data
+            ppu_set_pixel(data, pixel)
         }
     }
 }
@@ -383,9 +384,9 @@ ppu_draw_tiles :: proc(bg_index: u8) {
         } else {
             color = ppu_draw_16_16(tile, tile_data, y_in_tile, x_in_tile)
         }
-        pixel := ((line_count * 240) + i)
+        pixel := u32((line_count * 240) + i)
         if(color != 0x8000) {
-            screen_buffer[pixel] = color
+            ppu_set_pixel(color, pixel)
         }
     }
 }
@@ -540,12 +541,21 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
                         if(pixel >= 57600) {
                             continue
                         }
-                        screen_buffer[pixel] = bus_read16(OB_PALETTE + palette_offset)
+                        color := bus_read16(OB_PALETTE + palette_offset)
+                        ppu_set_pixel(color, pixel)
                     }
                 }
             }
         }
     }
+}
+
+ppu_set_pixel :: proc(color: u16, pixel: u32) {
+    r := (color & 0x1F) << 10
+    g := color & 0x3E0
+    b := (color & 0x7C00) >> 10
+    new_color := (r | g | b) | 0x8000
+    screen_buffer[pixel] = new_color
 }
 
 ppu_get_pixels :: proc() -> []u16 {

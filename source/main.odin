@@ -15,13 +15,17 @@ DEBUG :: false
 START_BIOS :: false
 ROM_PATH :: "tests/touhou_bad_apple.gba"
 
+Vector2f :: distinct [2]f32
+Vector3f :: distinct [3]f32
+Vector4f :: distinct [4]f32
+
 @(private="file")
 window: ^sdl.Window
 debug_render: ^sdl.Renderer
 quit: bool
 @(private="file")
 step: bool
-pause := true
+pause := false
 last_pause := true
 texture: ^sdl.Texture
 timer0: Timer
@@ -43,13 +47,13 @@ main :: proc() {
     init_controller()
 
     window = sdl.CreateWindow("odin-gba", WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE,
-        sdl.WINDOW_OPENGL)
+        sdl.WINDOW_VULKAN)
     assert(window != nil, "Failed to create main window")
     defer sdl.DestroyWindow(window)
     sdl.SetWindowPosition(window, 200, 200)
     render_init(window)
-    defer render_delete()
-    update_viewport(WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE)
+    defer render_deinit()
+    render_update_viewport(WIN_WIDTH * WIN_SCALE, WIN_HEIGHT * WIN_SCALE)
 
     when(DEBUG) {
         if(!sdlttf.Init()) {
@@ -58,7 +62,7 @@ main :: proc() {
         defer sdlttf.Quit()
 
         debug_window: ^sdl.Window
-        if(!sdl.CreateWindowAndRenderer("debug", 800, 600, sdl.WINDOW_OPENGL, &debug_window, &debug_render)) {
+        if(!sdl.CreateWindowAndRenderer("debug", 800, 600, sdl.WINDOW_VULKAN, &debug_window, &debug_render)) {
             panic("Failed to create debug window")
         }
         assert(debug_window != nil, "Failed to create debug window")
@@ -100,6 +104,7 @@ main :: proc() {
         return
     }
 
+    ui_sprite_create_all()
     bus_load_rom(ROM_PATH)
     file_name := filepath.short_stem(ROM_PATH)
     when !START_BIOS {
@@ -172,9 +177,22 @@ main :: proc() {
 }
 
 draw_main :: proc(screen_buffer: []u16, texture: ^sdl.Texture) {
-    texture := texture_create(WIN_WIDTH, WIN_HEIGHT, &screen_buffer[0])
-    render_screen(texture)
-    texture_destroy(texture)
+    ui_process()
+    render_pre()
+    render_set_shader()
+    n := texture_create(WIN_WIDTH, WIN_HEIGHT, &screen_buffer[0], 2)
+    render_quad({
+        texture = n,
+        position = {-resolution.x / 2, -resolution.y / 2},
+        size = {resolution.x, resolution.y},
+        scale = 1,
+        offset = {0, 0},
+        flip = {0, 0},
+        color = {1, 1, 1, 1},
+    })
+    texture_destroy(n)
+    ui_render()
+    render_post()
 }
 
 draw_debug :: proc() {
@@ -184,8 +202,8 @@ draw_debug :: proc() {
 }
 
 handle_events :: proc() {
+    input_reset()
     event: sdl.Event
-
     for sdl.PollEvent(&event) {
         #partial switch(event.type) {
         case sdl.EventType.QUIT:
