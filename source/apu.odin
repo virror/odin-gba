@@ -67,6 +67,21 @@ constexpr int base_divisors[] = {
 constexpr int cycles_per_clock = 4'190'000 / 512
 */
 
+apu_reset :: proc() {
+    direct_sound_a_counter = 0
+    direct_sound_b_counter = 0
+    direct_sound_a_out = 0
+    direct_sound_b_out = 0
+    direct_sound_a_buffer = {}
+    direct_sound_b_buffer = {}
+    square1 = {}
+    square2 = {}
+    noise = {}
+    apu_init(&square1, 0)
+    apu_init(&square2, 1)
+    apu_init(&noise, 3)
+}
+
 apu_init :: proc(channel: ^Square, id: int) {
     channel.timer_period = 4 * (2048 - 1524)
     channel.timer_val = 4 * (2048 - 1524)

@@ -53,6 +53,17 @@ PC: u32
 CPSR: Flags
 refetch: bool
 
+cpu_reset :: proc() {
+    halt = false
+    stop = false
+    regs = {}
+    pipeline = {}
+    PC = 0
+    CPSR = Flags(0)
+    refetch = false
+    cpu_init()
+}
+
 cpu_init :: proc() {
     CPSR.Mode = Modes.M_SUPERVISOR
     when !TEST_ENABLE {

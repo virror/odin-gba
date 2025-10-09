@@ -47,6 +47,24 @@ bldcnt: u16
 bldalpha: u16
 bldy: u16
 
+ppu_reset :: proc() {
+    cycle_count = 0
+    line_count = 0
+    current_state = .DRAW
+    vcount = 0
+    mosaic = 0
+    win0h = 0
+    win1h = 0
+    win0v = 0
+    win1v = 0
+    winin = 0
+    winout = 0
+    bg0cnt = 0
+    bg1cnt = 0
+    bg2cnt = 0
+    bg3cnt = 0
+}
+
 ppu_step :: proc(cycles: u32) -> bool {
     ready_draw: bool
     cycle_count += cycles

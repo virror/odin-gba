@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 
  Save_type :: enum {
     UNDEFINED,
@@ -12,6 +13,13 @@ import "core:os"
 mem: [0xFFFFFFF]u8
 ram_write: bool
 save_type: Save_type = .SRAM
+
+bus_reset :: proc() {
+    mem = {}
+    ram_write = false
+    save_type = .SRAM
+    bus_load_bios()
+}
 
 bus_load_bios :: proc() {
     file, err := os.open("gba_bios.bin", os.O_RDONLY)
@@ -26,6 +34,7 @@ bus_load_rom :: proc(path: string) {
     assert(err == nil, "Failed to open rom")
     _, err2 := os.read(file, mem[0x08000000:])
     assert(err2 == nil, "Failed to read rom data")
+    file_name = filepath.short_stem(path)
     os.close(file)
 }
 
@@ -300,7 +309,8 @@ bus_write32 :: proc(addr: u32, value: u32) {
 }
 
 bus_irq_set :: proc(bit: u8) {
-    mem[IO_IF] = utils_bit_set8(mem[IO_IF], bit)
+    iflag := bus_get16(IO_IF)
+    bus_set16(IO_IF, utils_bit_set16(iflag, bit))
 }
 
 bus_save_ram :: proc() {

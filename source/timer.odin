@@ -22,6 +22,14 @@ Timer :: struct {
 
 tmr_init :: proc(timer: ^Timer, index: u8) {
     timer.index = index
+    switch(index) {
+    case 0:
+        timer.count_up_timer = &timer1
+    case 1:
+        timer.count_up_timer = &timer2
+    case 2:
+        timer.count_up_timer = &timer3
+    }
 }
 
 tmr_step :: proc(timer: ^Timer, cycles: u32) {

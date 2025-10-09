@@ -105,6 +105,129 @@ input_write :: proc(addr: u32, value: u8) {
     }
 }
 
+input_process :: proc(event: ^sdl.Event) {
+    #partial switch event.type {
+    case sdl.EventType.KEY_DOWN:
+        if text_input_active() {
+            switch event.key.key {
+            case sdl.K_BACKSPACE:
+                text_input_remove()
+            case sdl.K_RETURN:
+                text_input_stop()
+            case sdl.K_LEFT:
+                text_input_move(true)
+            case sdl.K_RIGHT:
+                text_input_move(false)
+            case sdl.K_HOME:
+                text_input_home()
+            case sdl.K_END:
+                text_input_end()
+            }
+        } else {
+            switch event.key.key {
+            case sdl.K_DOWN:
+                input_set_key(Keys.DOWN)
+            case sdl.K_UP:
+                input_set_key(Keys.UP)
+            case sdl.K_LEFT:
+                input_set_key(Keys.LEFT)
+            case sdl.K_RIGHT:
+                input_set_key(Keys.RIGHT)
+            case sdl.K_Q:
+                input_set_key(Keys.SELECT)
+            case sdl.K_W:
+                input_set_key(Keys.START)
+            case sdl.K_Z:
+                input_set_key(Keys.A)
+            case sdl.K_X:
+                input_set_key(Keys.B)
+            case sdl.K_C:
+                input_set_key(Keys.L)
+            case sdl.K_V:
+                input_set_key(Keys.R)
+            }
+        }
+    case sdl.EventType.GAMEPAD_BUTTON_DOWN:
+        #partial switch sdl.GamepadButton(event.gbutton.button) {
+        case sdl.GamepadButton.DPAD_DOWN:
+            input_set_key(Keys.DOWN)
+        case sdl.GamepadButton.DPAD_UP:
+            input_set_key(Keys.UP)
+        case sdl.GamepadButton.DPAD_LEFT:
+            input_set_key(Keys.LEFT)
+        case sdl.GamepadButton.DPAD_RIGHT:
+            input_set_key(Keys.RIGHT)
+        case sdl.GamepadButton.BACK:
+            input_set_key(Keys.SELECT)
+        case sdl.GamepadButton.START:
+            input_set_key(Keys.START)
+        case sdl.GamepadButton.SOUTH:
+            input_set_key(Keys.A)
+        case sdl.GamepadButton.EAST:
+            input_set_key(Keys.B)
+        case sdl.GamepadButton.LEFT_SHOULDER:
+            input_set_key(Keys.L)
+        case sdl.GamepadButton.RIGHT_SHOULDER:
+            input_set_key(Keys.R)
+        }
+    case sdl.EventType.KEY_UP:
+        switch event.key.key {
+        case sdl.K_DOWN:
+            input_clear_key(Keys.DOWN)
+        case sdl.K_UP:
+            input_clear_key(Keys.UP)
+        case sdl.K_LEFT:
+            input_clear_key(Keys.LEFT)
+        case sdl.K_RIGHT:
+            input_clear_key(Keys.RIGHT)
+        case sdl.K_Q:
+            input_clear_key(Keys.SELECT)
+        case sdl.K_W:
+            input_clear_key(Keys.START)
+        case sdl.K_Z:
+            input_clear_key(Keys.A)
+        case sdl.K_X:
+            input_clear_key(Keys.B)
+        case sdl.K_C:
+            input_clear_key(Keys.L)
+        case sdl.K_V:
+            input_clear_key(Keys.R)
+        }
+    case sdl.EventType.GAMEPAD_BUTTON_UP:
+        #partial switch sdl.GamepadButton(event.gbutton.button) {
+        case sdl.GamepadButton.DPAD_DOWN:
+            input_clear_key(Keys.DOWN)
+        case sdl.GamepadButton.DPAD_UP:
+            input_clear_key(Keys.UP)
+        case sdl.GamepadButton.DPAD_LEFT:
+            input_clear_key(Keys.LEFT)
+        case sdl.GamepadButton.DPAD_RIGHT:
+            input_clear_key(Keys.RIGHT)
+        case sdl.GamepadButton.BACK:
+            input_clear_key(Keys.SELECT)
+        case sdl.GamepadButton.START:
+            input_clear_key(Keys.START)
+        case sdl.GamepadButton.SOUTH:
+            input_clear_key(Keys.A)
+        case sdl.GamepadButton.EAST:
+            input_clear_key(Keys.B)
+        case sdl.GamepadButton.LEFT_SHOULDER:
+            input_clear_key(Keys.L)
+        case sdl.GamepadButton.RIGHT_SHOULDER:
+            input_clear_key(Keys.R)
+        }
+    case sdl.EventType.MOUSE_MOTION:
+        mouse_state.position.x = f32(event.motion.x)
+        mouse_state.position.y = resolution.y - f32(event.motion.y)
+    case sdl.EventType.MOUSE_BUTTON_DOWN:
+        mouse_state.button[Mouse_button(event.button.button)] = true
+    case sdl.EventType.MOUSE_BUTTON_UP:
+        delete_key(&mouse_state.button, Mouse_button(event.button.button))
+    case sdl.EventType.TEXT_INPUT:
+        text_input_add(string(event.text.text))
+    }
+}
+
 mouse_down :: proc(i: Mouse_button) -> bool {
     return mouse_state.button[i] && mouse_state.prev_button[i]
 }

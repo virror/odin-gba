@@ -13,7 +13,6 @@ WIN_SCALE :: 2
 
 DEBUG :: false
 START_BIOS :: false
-ROM_PATH :: "tests/touhou_bad_apple.gba"
 
 Vector2f :: distinct [2]f32
 Vector3f :: distinct [3]f32
@@ -25,7 +24,9 @@ debug_render: ^sdl.Renderer
 quit: bool
 @(private="file")
 step: bool
-pause := false
+@(private="file")
+pause := true
+@(private="file")
 last_pause := true
 texture: ^sdl.Texture
 timer0: Timer
@@ -37,6 +38,15 @@ dma1: Dma
 dma2: Dma
 dma3: Dma
 audio_stream: ^sdl.AudioStream
+file_name: string
+@(private="file")
+pause_btn: ^Ui_element
+@(private="file")
+load_btn: ^Ui_element
+@(private="file")
+resume_btn: ^Ui_element
+@(private="file")
+filter: sdl.DialogFileFilter = {name = "GBA rom", pattern = "gba"}
 
 main :: proc() {
     if(!sdl.Init(sdl.INIT_VIDEO | sdl.INIT_GAMEPAD | sdl.INIT_AUDIO)) {
@@ -85,7 +95,6 @@ main :: proc() {
     assert(audio_stream != nil, "Failed to create audio device") // TODO: Handle error
 
     bus_load_bios()
-    cpu_init()
     tmr_init(&timer0, 0)
     tmr_init(&timer1, 1)
     tmr_init(&timer2, 2)
@@ -94,10 +103,6 @@ main :: proc() {
     dma_init(&dma1, 1)
     dma_init(&dma2, 2)
     dma_init(&dma3, 3)
-    apu_init(&square1, 0)
-    apu_init(&square2, 1)
-    apu_init(&noise, 3)
-    input_init()
 
     when TEST_ENABLE {
         test_all()
@@ -105,11 +110,7 @@ main :: proc() {
     }
 
     ui_sprite_create_all()
-    bus_load_rom(ROM_PATH)
-    file_name := filepath.short_stem(ROM_PATH)
-    when !START_BIOS {
-        cpu_init_no_bios()
-    }
+    create_ui()
 
     cycles_since_last_sample: u32
     cycles_per_sample :u32= 340
@@ -127,7 +128,7 @@ main :: proc() {
         accumulated_time += f64(time - prev_time) / 1000.0
         prev_time = time
 
-        for (!pause || step) && !redraw && !buffer_is_full() {
+        if((!pause || step) && !redraw && !buffer_is_full()) {
             cycles := cpu_step()
             cycles_since_last_sample += cycles
 
@@ -157,12 +158,28 @@ main :: proc() {
             last_pause = pause
         }
 
-        handle_events()
-
         if(accumulated_time > step_length) {
             // Draw if its time and ppu is ready
-            redraw = false
-            draw_main(ppu_get_pixels(), texture)
+            handle_events()
+            ui_process()
+            render_pre()
+            render_set_shader()
+            if(redraw || pause) {
+                n := texture_create(WIN_WIDTH, WIN_HEIGHT, &ppu_get_pixels()[0], 2)
+                render_quad({
+                    texture = n,
+                    position = {-resolution.x / 2, -resolution.y / 2},
+                    size = {resolution.x, resolution.y},
+                    scale = 1,
+                    offset = {0, 0},
+                    flip = {0, 0},
+                    color = {1, 1, 1, 1},
+                })
+                texture_destroy(n)
+                redraw = false
+            }
+            ui_render()
+            render_post()
 
             frame_cnt += accumulated_time
             if(frame_cnt > 0.25) { //Update frame counter 4 times/s
@@ -176,29 +193,20 @@ main :: proc() {
     }
 }
 
-draw_main :: proc(screen_buffer: []u16, texture: ^sdl.Texture) {
-    ui_process()
-    render_pre()
-    render_set_shader()
-    n := texture_create(WIN_WIDTH, WIN_HEIGHT, &screen_buffer[0], 2)
-    render_quad({
-        texture = n,
-        position = {-resolution.x / 2, -resolution.y / 2},
-        size = {resolution.x, resolution.y},
-        scale = 1,
-        offset = {0, 0},
-        flip = {0, 0},
-        color = {1, 1, 1, 1},
-    })
-    texture_destroy(n)
-    ui_render()
-    render_post()
-}
-
 draw_debug :: proc() {
     sdl.RenderClear(debug_render)
     debug_draw()
     sdl.RenderPresent(debug_render)
+}
+
+pause_emu :: proc(is_pause: bool) {
+    last_pause = pause
+    pause = is_pause
+    /*if(!pause) {
+        sdl.ResumeAudioStreamDevice(audio_stream)
+    } else {
+        sdl.PauseAudioStreamDevice(audio_stream)
+    }*/
 }
 
 handle_events :: proc() {
@@ -215,120 +223,27 @@ handle_events :: proc() {
             bus_save_ram()
             break
         case sdl.EventType.KEY_DOWN:
-            handle_keys_down(event.key.key)
+            handle_dbg_keys(&event)
             break
-        case sdl.EventType.GAMEPAD_BUTTON_DOWN:
-            //handle_controller_down(event.cbutton.button)
-            break
-        case sdl.EventType.KEY_UP:
-            handle_keys_up(event.key.key)
-            break
-        case sdl.EventType.GAMEPAD_BUTTON_UP:
-            //handle_controller_up(event.cbutton.button)
+        case sdl.EventType.WINDOW_MOUSE_ENTER:
+            if(!pause) {
+                pause_btn.disabled = false
+            }
+        case sdl.EventType.WINDOW_MOUSE_LEAVE:
+            pause_btn.disabled = true
             break
         }
+        input_process(&event)
     }
 }
 
-handle_keys_down :: proc(keycode: sdl.Keycode) {
-    switch(keycode) {
-    case sdl.K_SPACE:
-        last_pause = pause
-        pause = !pause
-        /*if(!pause) {
-            sdl.ResumeAudioStreamDevice(audio_stream)
-        } else {
-            sdl.PauseAudioStreamDevice(audio_stream)
-        }*/
-        break
+@(private="file")
+handle_dbg_keys :: proc(event: ^sdl.Event) {
+    switch event.key.key {
     case sdl.K_S:
         step = true
-        break
-    case sdl.K_DOWN:
-    //case sdl.GameControllerButton.DPAD_DOWN:
-        input_set_key(Keys.DOWN)
-        break
-    case sdl.K_UP:
-    //case sdl.GameControllerButton.DPAD_UP:
-        input_set_key(Keys.UP)
-        break
-    case sdl.K_LEFT:
-    //case sdl.GameControllerButton.DPAD_LEFT:
-        input_set_key(Keys.LEFT)
-        break
-    case sdl.K_RIGHT:
-    //case sdl.GameControllerButton.DPAD_RIGHT:
-        input_set_key(Keys.RIGHT)
-        break
-    case sdl.K_Q:
-    //case sdl.GameControllerButton.BACK:
-        input_set_key(Keys.SELECT)
-        break
-    case sdl.K_W:
-    //case sdl.GameControllerButton.START:
-        input_set_key(Keys.START)
-        break
-    case sdl.K_Z:
-    //case sdl.GameControllerButton.A:
-        input_set_key(Keys.A)
-        break
-    case sdl.K_X:
-    //case sdl.GameControllerButton.B:
-        input_set_key(Keys.B)
-        break
-    case sdl.K_C:
-    //case sdl.GameControllerButton.LEFTSHOULDER:
-        input_set_key(Keys.L)
-        break
-    case sdl.K_V:
-    //case sdl.GameControllerButton.RIGHTSHOULDER:
-        input_set_key(Keys.R)
-        break
-    }
-}
-
-handle_keys_up :: proc(keycode: sdl.Keycode) {
-    switch(keycode) {
-    case sdl.K_DOWN:
-    //case sdl.GameControllerButton.DPAD_DOWN:
-        input_clear_key(Keys.DOWN)
-        break
-    case sdl.K_UP:
-    //case sdl.GameControllerButton.DPAD_UP:
-        input_clear_key(Keys.UP)
-        break
-    case sdl.K_LEFT:
-    //case sdl.GameControllerButton.DPAD_LEFT:
-        input_clear_key(Keys.LEFT)
-        break
-    case sdl.K_RIGHT:
-    //case sdl.GameControllerButton.DPAD_RIGHT:
-        input_clear_key(Keys.RIGHT)
-        break
-    case sdl.K_Q:
-    //case sdl.GameControllerButton.BACK:
-        input_clear_key(Keys.SELECT)
-        break
-    case sdl.K_W:
-    //case sdl.GameControllerButton.START:
-        input_clear_key(Keys.START)
-        break
-    case sdl.K_Z:
-    //case sdl.GameControllerButton.A:
-        input_clear_key(Keys.A)
-        break
-    case sdl.K_X:
-    //case sdl.GameControllerButton.B:
-        input_clear_key(Keys.B)
-        break
-    case sdl.K_C:
-    //case sdl.GameControllerButton.LEFTSHOULDER:
-        input_clear_key(Keys.L)
-        break
-    case sdl.K_V:
-    //case sdl.GameControllerButton.RIGHTSHOULDER:
-        input_clear_key(Keys.R)
-        break
+    case sdl.K_ESCAPE:
+        quit = true
     }
 }
 
@@ -354,6 +269,67 @@ init_controller :: proc() {
             if (controller != nil) {
                 break
             }
+        }
+    }
+}
+
+@(private="file")
+reset_all :: proc() {
+    ppu_reset()
+    apu_reset()
+    cpu_reset()
+    bus_reset()
+    input_init()
+}
+
+@(private="file")
+create_ui :: proc() {
+    pause_btn = ui_button({0, 0}, {245, 245}, pause_game, .middle_center)
+    pause_btn.disabled = true
+    pause_btn.sprite = ui_sprites[2]
+    pause_btn.color = {1, 1, 1, 0.4}
+
+    load_btn = ui_button({0, 0}, {150, 40}, load_game, .middle_center)
+    ui_text({0, 0}, 16, "Load game", .middle_center, load_btn)
+
+    resume_btn = ui_button({0, 50}, {150, 40}, resume_game, .middle_center)
+    resume_btn.disabled = true
+    ui_text({0, 0}, 16, "Resume", .middle_center, resume_btn)
+}
+
+@(private="file")
+pause_game :: proc(button: ^Ui_element) {
+    pause_emu(true)
+    pause_btn.disabled = true
+    load_btn.disabled = false
+    resume_btn.disabled = false
+}
+
+@(private="file")
+resume_game :: proc(button: ^Ui_element) {
+    pause_emu(false)
+    pause_btn.disabled = false
+    load_btn.disabled = true
+    resume_btn.disabled = true
+}
+
+@(private="file")
+load_game :: proc(button: ^Ui_element) {
+    sdl.ShowOpenFileDialog(load_callback, nil, window, &filter, 1, nil, false)
+}
+
+load_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) {
+    context = runtime.default_context()
+    game_path := string(filelist[0])
+    if(game_path != "") {
+        reset_all()
+        bus_load_rom(game_path)
+        sdl.SetWindowTitle(window, fmt.caprintf("odin-gb - %s", file_name))
+        pause_emu(false)
+        load_btn.disabled = true
+        resume_btn.disabled = true
+        when !START_BIOS {
+            cpu_init_no_bios()
         }
     }
 }
