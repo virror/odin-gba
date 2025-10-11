@@ -26,8 +26,6 @@ quit: bool
 step: bool
 @(private="file")
 pause := true
-@(private="file")
-last_pause := true
 texture: ^sdl.Texture
 timer0: Timer
 timer1: Timer
@@ -153,10 +151,6 @@ main :: proc() {
                 step = false
             }
         }
-        if(pause != last_pause) {
-            draw_debug()
-            last_pause = pause
-        }
 
         if(accumulated_time > step_length) {
             // Draw if its time and ppu is ready
@@ -188,7 +182,7 @@ main :: proc() {
                 line := fmt.caprintf("odin-gba - %s %.1ffps", file_name, frames)
                 sdl.SetWindowTitle(window, line)
             }
-            accumulated_time -= step_length
+            accumulated_time = 0
         }
     }
 }
@@ -199,14 +193,14 @@ draw_debug :: proc() {
     sdl.RenderPresent(debug_render)
 }
 
-pause_emu :: proc(is_pause: bool) {
-    last_pause = pause
-    pause = is_pause
-    /*if(!pause) {
-        sdl.ResumeAudioStreamDevice(audio_stream)
+pause_emu :: proc(do_pause: bool) {
+    pause = do_pause
+    if(!pause) {
+        //sdl.ResumeAudioStreamDevice(audio_stream)
     } else {
-        sdl.PauseAudioStreamDevice(audio_stream)
-    }*/
+        //sdl.PauseAudioStreamDevice(audio_stream)
+        draw_debug()
+    }
 }
 
 handle_events :: proc() {
