@@ -3,6 +3,13 @@ package main
 import "core:fmt"
 import "base:intrinsics"
 
+ARM_version :: enum {
+    ARMv4,
+    ARMv5,
+}
+
+ARMv :ARM_version: .ARMv4
+
 Regs :: enum {
     R0 = 0,
     R1 = 1,
@@ -38,7 +45,8 @@ Flags :: bit_field u32 {
     Thumb: bool   | 1,
     FIQ: bool     | 1,
     IRQ: bool     | 1,
-    Reserved: u32 | 20,
+    Reserved: u32 | 19,
+    Q: bool       | 1,
     V: bool       | 1,
     C: bool       | 1,
     Z: bool       | 1,
@@ -346,6 +354,17 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
         }
         break
     }
+    case 0x1000000:
+        when ARMv == .ARMv5 {
+            if((opcode & 0xFFF0FF0) == 0x16F0F10) {
+                retval = cpu_clz(opcode)
+            } else {
+                retval = cpu_qaddsub(opcode)
+            }
+        } else {
+            fmt.print("Unimplemented arm code: ")
+            fmt.println(opcode)
+        }
     case 0x2000000: //ALU immediate
         retval = cpu_arm_alu(opcode, true)
         break
@@ -570,8 +589,14 @@ cpu_hw_transfer :: proc(opcode: u32) -> u32 {
                     cpu_reg_set(Rn, address)
                 }
             }
-        case 0x40, 0x60:
-            //Invalid for ARM7
+        case 0x40:
+            when ARMv == .ARMv5 {   //Invalid for ARM7
+                fmt.println("LDRD")
+            }
+        case 0x60:
+            when ARMv == .ARMv5 {   //Invalid for ARM7
+                fmt.println("STRD")
+            }
         }
     }
     return cycles
@@ -604,13 +629,74 @@ cpu_bx :: proc(opcode: u32) -> u32 {
     value := cpu_reg_get(Rn)
     thumb := utils_bit_get32(value, 0)
     PC += 4
+    when ARMv == .ARMv5 {
+        op := (opcode >> 4) & 3
+        pc := PC
+    }
     if(thumb) {
         CPSR.Thumb = true
         cpu_reg_set(Regs.PC, (value & 0xFFFFFFFE))
     } else {
         cpu_reg_set(Regs.PC, value)
     }
+    when ARMv == .ARMv5 {
+        if(op == 3) { //BLX
+            cpu_reg_set(Regs.LR, pc + 4)
+        }
+    }
     return 3
+}
+
+cpu_clz :: proc(opcode: u32) -> u32 {
+    Rd := Regs((opcode & 0xF000) >> 12)
+    Rm := Regs(opcode & 0xF)
+
+    count := intrinsics.count_leading_zeros(cpu_reg_get(Rm))
+    cpu_reg_set(Rd, count)
+    return 1
+}
+
+cpu_qaddsub :: proc(opcode: u32) -> u32 {
+    Rn := Regs((opcode & 0xF0000) >> 16)
+    Rd := Regs((opcode & 0xF000) >> 12)
+    Rm := Regs(opcode & 0xF)
+    op := (opcode >> 20) & 0xF
+    a := i64(i32(cpu_reg_get(Rn)))
+    b := i64(i32(cpu_reg_get(Rm)))
+
+    if(op == 0x2 || op == 0x6) {
+        b = -b
+    }
+
+    qflag := CPSR.Q
+
+    if(op == 0x4 || op == 0x6) {
+        doubled := a * 2
+        if(doubled > i64(0x7FFFFFFF)) {
+            a = i64(0x7FFFFFFF)
+            qflag = true
+        } else if(doubled < i64(-2147483648)) {
+            a = i64(-2147483648)
+            qflag = true
+        } else {
+            a = doubled
+        }
+    }
+
+    sum := a + b
+
+    if(sum > i64(0x7FFFFFFF)) {
+        cpu_reg_set(Rd, u32(0x7FFFFFFF))
+        qflag = true
+    } else if(sum < i64(-2147483648)) {
+        cpu_reg_set(Rd, u32(0x80000000))
+        qflag = true
+    } else {
+        cpu_reg_set(Rd, u32(i32(sum)))
+    }
+
+    CPSR.Q = qflag
+    return 1
 }
 
 cpu_arm_alu :: proc(opcode: u32, I: bool) -> u32 {
