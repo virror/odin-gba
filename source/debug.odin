@@ -213,8 +213,8 @@ debug_get_arm_names :: proc(opcode: u32) -> (cstring, cstring){
     switch(id) {
     case 0x0000000:
     {
-        if((opcode & 0xFFFFFF0) == 0x12FFF10) {
-                op_name = dbg_bx(opcode)
+        if((opcode & 0xFFFFFC0) == 0x12FFF00) {
+            op_name = dbg_bx(opcode)
         } else if((opcode & 0x10000F0) == 0x0000090) { //MUL, MLA
             if((opcode & 0x00000F0) == 0x0000090) {
                 if(utils_bit_get32(opcode, 23)) { //MULL, MLAL
@@ -228,7 +228,7 @@ debug_get_arm_names :: proc(opcode: u32) -> (cstring, cstring){
         } else if (((opcode & 0xF0) == 0xB0) || ((opcode & 0xD0) == 0xD0)){
             op_name = dbg_hw_transfer(opcode)
         } else { //ALU reg
-                op_name = dbg_alu(opcode, false)
+            op_name = dbg_alu(opcode, false)
         }
         break
     }

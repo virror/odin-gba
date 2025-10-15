@@ -2,7 +2,6 @@ package main
 
 import "core:math"
 import "core:fmt"
-import "core:path/filepath"
 import "base:runtime"
 import sdl "vendor:sdl3"
 import sdlttf "vendor:sdl3/ttf"

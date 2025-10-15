@@ -337,7 +337,7 @@ cpu_exec_arm :: proc(opcode: u32) -> u32 {
     switch(id) {
     case 0x0000000:
     {
-        if((opcode & 0xFFFFFF0) == 0x12FFF10) {
+        if((opcode & 0xFFFFFC0) == 0x12FFF00) {
             retval = cpu_bx(opcode)
         } else if((opcode & 0x10000F0) == 0x0000090) { //MUL, MLA
             if(utils_bit_get32(opcode, 23)) { //MULL, MLAL
