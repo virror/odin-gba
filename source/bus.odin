@@ -3,6 +3,7 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
+import "../../odin-libs/cpu/arm7"
 
  Save_type :: enum {
     UNDEFINED,
@@ -13,6 +14,17 @@ import "core:path/filepath"
 mem: [0xFFFFFFF]u8
 ram_write: bool
 save_type: Save_type = .SRAM
+
+bus_init :: proc() {
+    arm7.bus_read8 = bus_read8
+    arm7.bus_read16 = bus_read16
+    arm7.bus_read32 = bus_read32
+    arm7.bus_write8 = bus_write8
+    arm7.bus_write16 = bus_write16
+    arm7.bus_write32 = bus_write32
+    arm7.bus_get16 = bus_get16
+    arm7.bus_get32 = bus_get32
+}
 
 bus_reset :: proc() {
     mem = {}
@@ -59,11 +71,11 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
                 return 0xEF
             }
             // BIOS is read protected when PC is outside of it
-            if(PC >= 0x00004000) {
+            /*if(PC >= 0x00004000) {    //TODO: FIX!
                 return 0xAF
             } else {
                 //last_bios_value = mem[addr]
-            }
+            }*/
             break
         case 0x2000000: //WRAM
             addr &= 0x303FFFF
@@ -167,9 +179,9 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
                 mem[addr] = value
             case IO_HALTCNT:
                 if(utils_bit_get16(u16(value), 7)) {
-                    stop = true
+                    arm7.stop()
                 } else {
-                    halt = true
+                    arm7.halt()
                 }
             case:
                 mem[addr] = value

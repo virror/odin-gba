@@ -421,11 +421,11 @@ b_uncond :: proc(opcode: u16) -> cstring {
 
 bl :: proc(opcode: u16) -> cstring {
     op_name :cstring= "Undefined"
-    imm := u32(opcode & 0x7FF) << 12
+    /*imm := u32(opcode & 0x7FF) << 12
     opcode2 := bus_read16(cpu_reg_get(Regs.PC) + 2)
     imm2 := u32(opcode2 & 0x7FF) << 1
     pc := i32(cpu_reg_get(Regs.PC))
     offset := utils_sign_extend32(imm + imm2, 23)
-    op_name = fmt.caprintf("BL %d", i32(offset) + pc)
+    op_name = fmt.caprintf("BL %d", i32(offset) + pc)*/
     return op_name
 }

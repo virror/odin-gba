@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "../../odin-libs/cpu/arm7"
 
 OAM :u32: 0x07000000
 BG_PALETTE :u32: 0x05000000
@@ -69,7 +70,7 @@ ppu_step :: proc(cycles: u32) -> bool {
     ready_draw: bool
     cycle_count += cycles
 
-    if(stop) {
+    if(arm7.get_stop()) {
         return false
     }
 

@@ -3,12 +3,14 @@ package main
 import "core:fmt"
 import "core:os"
 import "core:encoding/json"
+import "../../odin-libs/cpu/arm7"
 
 TEST_ENABLE :: false
-TEST_ALL :: false
-TEST_FILE :: "tests/json/arm_mrs.json"
+TEST_ALL :: true
+TEST_FILE :: "tests/json/arm_bx.json"
 TEST_BREAK_ERROR :: true
 
+when TEST_ENABLE {
 Transaction :: struct {
     kind: u32,
     size: u32,
@@ -112,117 +114,117 @@ M_SYSTEM = 15,
 test_run :: proc(json_data: Json_data) {
     error_string = ""
     for i in 0..=14 {
-        regs[i][0] = json_data.initial.R[i]
+        arm7.regs[i][0] = json_data.initial.R[i]
     }
-    PC = json_data.initial.R[15]
+    arm7.PC = json_data.initial.R[15]
 
     for i in 8..=14 {
-        regs[i][1] = json_data.initial.R_fiq[i - 8]
+        arm7.regs[i][1] = json_data.initial.R_fiq[i - 8]
     }
 
-    regs[13][7] = json_data.initial.R_abt[0]
-    regs[14][7] = json_data.initial.R_abt[1]
+    arm7.regs[13][7] = json_data.initial.R_abt[0]
+    arm7.regs[14][7] = json_data.initial.R_abt[1]
 
-    regs[13][2] = json_data.initial.R_irq[0]
-    regs[14][2] = json_data.initial.R_irq[1]
+    arm7.regs[13][2] = json_data.initial.R_irq[0]
+    arm7.regs[14][2] = json_data.initial.R_irq[1]
 
-    regs[13][3] = json_data.initial.R_svc[0]
-    regs[14][3] = json_data.initial.R_svc[1]
+    arm7.regs[13][3] = json_data.initial.R_svc[0]
+    arm7.regs[14][3] = json_data.initial.R_svc[1]
 
-    regs[13][11] = json_data.initial.R_und[0]
-    regs[14][11] = json_data.initial.R_und[1]
+    arm7.regs[13][11] = json_data.initial.R_und[0]
+    arm7.regs[14][11] = json_data.initial.R_und[1]
 
-    CPSR = Flags(json_data.initial.CPSR)
-    regs[17][1] = json_data.initial.SPSR[0]
-    regs[17][3] = json_data.initial.SPSR[1]
-    regs[17][7] = json_data.initial.SPSR[2]
-    regs[17][2] = json_data.initial.SPSR[3]
-    regs[17][11] = json_data.initial.SPSR[4]
+    arm7.CPSR = arm7.Flags(json_data.initial.CPSR)
+    arm7.regs[17][1] = json_data.initial.SPSR[0]
+    arm7.regs[17][3] = json_data.initial.SPSR[1]
+    arm7.regs[17][7] = json_data.initial.SPSR[2]
+    arm7.regs[17][2] = json_data.initial.SPSR[3]
+    arm7.regs[17][11] = json_data.initial.SPSR[4]
 
-    pipeline[0] = json_data.initial.pipeline[0]
-    pipeline[1] = json_data.initial.pipeline[1]
+    arm7.pipeline[0] = json_data.initial.pipeline[0]
+    arm7.pipeline[1] = json_data.initial.pipeline[1]
     transaction_cnt = 0
     transactions = json_data.transactions
-    opcode := pipeline[0]
+    opcode := arm7.pipeline[0]
 
     //Execute instruction
-    cpu_step()
+    arm7.step()
 
     //Compare results
     for i in 0..=7 {
-        if regs[i][0] != json_data.final.R[i] {
-            error_string = fmt.aprintf("Fail: R%d is %d, should be %d", i, regs[i][0], json_data.final.R[i])
+        if arm7.regs[i][0] != json_data.final.R[i] {
+            error_string = fmt.aprintf("Fail: R%d is %d, should be %d", i, arm7.regs[i][0], json_data.final.R[i])
         }
     }
     for i in 8..=12 {
-        if regs[i][0] != json_data.final.R[i] {
-            error_string = fmt.aprintf("Fail: R%d(0) is %d, should be %d", i, regs[i][0], json_data.final.R[i])
+        if arm7.regs[i][0] != json_data.final.R[i] {
+            error_string = fmt.aprintf("Fail: R%d(0) is %d, should be %d", i, arm7.regs[i][0], json_data.final.R[i])
         }
-        if regs[i][1] != json_data.final.R_fiq[i - 8] {
-            error_string = fmt.aprintf("Fail: R%d(1) is %d, should be %d", i, regs[i][1], json_data.final.R_fiq[i - 8])
+        if arm7.regs[i][1] != json_data.final.R_fiq[i - 8] {
+            error_string = fmt.aprintf("Fail: R%d(1) is %d, should be %d", i, arm7.regs[i][1], json_data.final.R_fiq[i - 8])
         }
     }
-    if regs[13][0] != json_data.final.R[13] {
-        error_string = fmt.aprintf("Fail: SP(0) is %d, should be %d", regs[13][0], json_data.final.R[13])
+    if arm7.regs[13][0] != json_data.final.R[13] {
+        error_string = fmt.aprintf("Fail: SP(0) is %d, should be %d", arm7.regs[13][0], json_data.final.R[13])
     }
-    if regs[13][1] != json_data.final.R_fiq[5] {
-        error_string = fmt.aprintf("Fail: SP(1) is %d, should be %d", regs[13][1], json_data.final.R_fiq[5])
+    if arm7.regs[13][1] != json_data.final.R_fiq[5] {
+        error_string = fmt.aprintf("Fail: SP(1) is %d, should be %d", arm7.regs[13][1], json_data.final.R_fiq[5])
     }
-    if regs[13][2] != json_data.final.R_irq[0] {
-        error_string = fmt.aprintf("Fail: SP(2) is %d, should be %d", regs[13][2], json_data.final.R_irq[0])
+    if arm7.regs[13][2] != json_data.final.R_irq[0] {
+        error_string = fmt.aprintf("Fail: SP(2) is %d, should be %d", arm7.regs[13][2], json_data.final.R_irq[0])
     }
-    if regs[13][3] != json_data.final.R_svc[0] {
-        error_string = fmt.aprintf("Fail: SP(3) is %d, should be %d", regs[13][3], json_data.final.R_svc[0])
+    if arm7.regs[13][3] != json_data.final.R_svc[0] {
+        error_string = fmt.aprintf("Fail: SP(3) is %d, should be %d", arm7.regs[13][3], json_data.final.R_svc[0])
     }
-    if regs[13][7] != json_data.final.R_abt[0] {
-        error_string = fmt.aprintf("Fail: SP(7) is %d, should be %d", regs[13][7], json_data.final.R_abt[0])
+    if arm7.regs[13][7] != json_data.final.R_abt[0] {
+        error_string = fmt.aprintf("Fail: SP(7) is %d, should be %d", arm7.regs[13][7], json_data.final.R_abt[0])
     }
-    if regs[13][11] != json_data.final.R_und[0] {
-        error_string = fmt.aprintf("Fail: SP(11) is %d, should be %d", regs[13][11], json_data.final.R_und[0])
+    if arm7.regs[13][11] != json_data.final.R_und[0] {
+        error_string = fmt.aprintf("Fail: SP(11) is %d, should be %d", arm7.regs[13][11], json_data.final.R_und[0])
     }
-    if regs[14][0] != json_data.final.R[14] {
-        error_string = fmt.aprintf("Fail: LR(0) is %d, should be %d", regs[14][0], json_data.final.R[14])
+    if arm7.regs[14][0] != json_data.final.R[14] {
+        error_string = fmt.aprintf("Fail: LR(0) is %d, should be %d", arm7.regs[14][0], json_data.final.R[14])
     }
-    if regs[14][1] != json_data.final.R_fiq[6] {
-        error_string = fmt.aprintf("Fail: LR(1) is %d, should be %d", regs[14][1], json_data.final.R_fiq[6])
+    if arm7.regs[14][1] != json_data.final.R_fiq[6] {
+        error_string = fmt.aprintf("Fail: LR(1) is %d, should be %d", arm7.regs[14][1], json_data.final.R_fiq[6])
     }
-    if regs[14][2] != json_data.final.R_irq[1] {
-        error_string = fmt.aprintf("Fail: LR(2) is %d, should be %d", regs[14][2], json_data.final.R_irq[1])
+    if arm7.regs[14][2] != json_data.final.R_irq[1] {
+        error_string = fmt.aprintf("Fail: LR(2) is %d, should be %d", arm7.regs[14][2], json_data.final.R_irq[1])
     }
-    if regs[14][3] != json_data.final.R_svc[1] {
-        error_string = fmt.aprintf("Fail: LR(3) is %d, should be %d", regs[14][3], json_data.final.R_svc[1])
+    if arm7.regs[14][3] != json_data.final.R_svc[1] {
+        error_string = fmt.aprintf("Fail: LR(3) is %d, should be %d", arm7.regs[14][3], json_data.final.R_svc[1])
     }
-    if regs[14][7] != json_data.final.R_abt[1] {
-        error_string = fmt.aprintf("Fail: LR(7) is %d, should be %d", regs[14][7], json_data.final.R_abt[1])
+    if arm7.regs[14][7] != json_data.final.R_abt[1] {
+        error_string = fmt.aprintf("Fail: LR(7) is %d, should be %d", arm7.regs[14][7], json_data.final.R_abt[1])
     }
-    if regs[14][11] != json_data.final.R_und[1] {
-        error_string = fmt.aprintf("Fail: LR(11) is %d, should be %d", regs[14][11], json_data.final.R_und[1])
+    if arm7.regs[14][11] != json_data.final.R_und[1] {
+        error_string = fmt.aprintf("Fail: LR(11) is %d, should be %d", arm7.regs[14][11], json_data.final.R_und[1])
     }
-    if PC != json_data.final.R[15] {
-        error_string = fmt.aprintf("Fail: PC is %d, should be %d", PC, json_data.final.R[15])
+    if arm7.PC != json_data.final.R[15] {
+        error_string = fmt.aprintf("Fail: PC is %d, should be %d", arm7.PC, json_data.final.R[15])
     }
     if(!test_get_mul(opcode)) {
-        if u32(CPSR) != json_data.final.CPSR {
-            error_string = fmt.aprintf("Fail: CPSR is %d\n, should be %d", CPSR, Flags(json_data.final.CPSR))
+        if u32(arm7.CPSR) != json_data.final.CPSR {
+            error_string = fmt.aprintf("Fail: CPSR is %d\n, should be %d", arm7.CPSR, arm7.Flags(json_data.final.CPSR))
         }
     }
-    if regs[17][1] != json_data.final.SPSR[0] {
-        error_string = fmt.aprintf("Fail: SPSR(1) is %d\n,      should be %d", Flags(regs[17][1]), Flags(json_data.final.SPSR[0]))
+    if arm7.regs[17][1] != json_data.final.SPSR[0] {
+        error_string = fmt.aprintf("Fail: SPSR(1) is %d\n,      should be %d", arm7.Flags(arm7.regs[17][1]), arm7.Flags(json_data.final.SPSR[0]))
     }
-    if regs[17][3] != json_data.final.SPSR[1] {
-        error_string = fmt.aprintf("Fail: SPSR(3) is %d\n,      should be %d", Flags(regs[17][3]), Flags(json_data.final.SPSR[1]))
+    if arm7.regs[17][3] != json_data.final.SPSR[1] {
+        error_string = fmt.aprintf("Fail: SPSR(3) is %d\n,      should be %d", arm7.Flags(arm7.regs[17][3]), arm7.Flags(json_data.final.SPSR[1]))
     }
-    if regs[17][7] != json_data.final.SPSR[2] {
-        error_string = fmt.aprintf("Fail: SPSR(7) is %d\n,      should be %d", Flags(regs[17][7]), Flags(json_data.final.SPSR[2]))
+    if arm7.regs[17][7] != json_data.final.SPSR[2] {
+        error_string = fmt.aprintf("Fail: SPSR(7) is %d\n,      should be %d", arm7.Flags(arm7.regs[17][7]), arm7.Flags(json_data.final.SPSR[2]))
     }
-    if regs[17][2] != json_data.final.SPSR[3] {
-        error_string = fmt.aprintf("Fail: SPSR(2) is %d\n,      should be %d", Flags(regs[17][2]), Flags(json_data.final.SPSR[3]))
+    if arm7.regs[17][2] != json_data.final.SPSR[3] {
+        error_string = fmt.aprintf("Fail: SPSR(2) is %d\n,      should be %d", arm7.Flags(arm7.regs[17][2]), arm7.Flags(json_data.final.SPSR[3]))
     }
-    if regs[17][11] != json_data.final.SPSR[4] {
-        error_string = fmt.aprintf("Fail: SPSR(11) is %d\n,      should be %d", Flags(regs[17][11]), Flags(json_data.final.SPSR[4]))
+    if arm7.regs[17][11] != json_data.final.SPSR[4] {
+        error_string = fmt.aprintf("Fail: SPSR(11) is %d\n,      should be %d", arm7.Flags(arm7.regs[17][11]), arm7.Flags(json_data.final.SPSR[4]))
     }
-    if pipeline[0] != json_data.final.pipeline[0] {
-        error_string = fmt.aprintf("Fail: pipeline 0 is %d,      should be %d", pipeline[0], json_data.final.pipeline[0])
+    if arm7.pipeline[0] != json_data.final.pipeline[0] {
+        error_string = fmt.aprintf("Fail: pipeline 0 is %d,      should be %d", arm7.pipeline[0], json_data.final.pipeline[0])
     }
     /*if cycle != transactions[transaction_cnt-1].cycle {
         error_string = fmt.aprintf("Fail: cycle is %d, should be %d", cycle, transactions[transaction_cnt-1].cycle)
@@ -261,7 +263,7 @@ test_write32 :: proc(addr: u32, value: u32) {
 }
 
 test_get_mul :: proc(opcode: u32) -> bool {
-    if(CPSR.Thumb) {
+    if(arm7.CPSR.Thumb) {
         opcode := u16(opcode)
         id := opcode & 0xF800
         if(id == 0x4000) {
@@ -281,4 +283,5 @@ test_get_mul :: proc(opcode: u32) -> bool {
         }
     }
     return false
+}
 }

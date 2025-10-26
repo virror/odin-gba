@@ -6,6 +6,7 @@ import "base:runtime"
 import sdl "vendor:sdl3"
 import sdlttf "vendor:sdl3/ttf"
 import "../../odin-libs/emu"
+import "../../odin-libs/cpu/arm7"
 
 WIN_WIDTH :: 240
 WIN_HEIGHT :: 160
@@ -91,6 +92,7 @@ main :: proc() {
 
     assert(audio_stream != nil, "Failed to create audio device") // TODO: Handle error
 
+    bus_init()
     bus_load_bios()
     tmr_init(&timer0, 0)
     tmr_init(&timer1, 1)
@@ -126,7 +128,7 @@ main :: proc() {
         prev_time = time
 
         if((!pause || step) && !redraw && !buffer_is_full()) {
-            cycles := cpu_step()
+            cycles := arm7.step()
             cycles_since_last_sample += cycles
 
             tmr_step(&timer0, cycles)
@@ -270,7 +272,6 @@ init_controller :: proc() {
 reset_all :: proc() {
     ppu_reset()
     apu_reset()
-    cpu_reset()
     bus_reset()
     input_init()
 }
@@ -318,11 +319,18 @@ load_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) 
         reset_all()
         bus_load_rom(game_path)
         sdl.SetWindowTitle(window, fmt.caprintf("odin-gb - %s", file_name))
-        pause_emu(false)
+        when(DEBUG) {
+            pause_emu(true)
+        } else {
+            pause_emu(false)
+        }
         load_btn.disabled = true
         resume_btn.disabled = true
         when !START_BIOS {
-            cpu_init_no_bios()
+            arm7.init_no_bios()
+            arm7.reset(0x08000000)
+        } else {
+            arm7.reset(0x00000000)
         }
     }
 }
