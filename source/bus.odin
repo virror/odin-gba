@@ -24,6 +24,15 @@ bus_init :: proc() {
     arm7.bus_write32 = bus_write32
     arm7.bus_get16 = bus_get16
     arm7.bus_get32 = bus_get32
+    arm7.cpu_exec_irq = bus_check_irq
+}
+
+bus_check_irq :: proc() {
+    if(utils_bit_get16(bus_get16(IO_IME), 0) && !arm7.get_cpsr().IRQ) { //IEs enabled
+        if(bus_get16(IO_IE) & bus_get16(IO_IF) > 0) { //IE triggered
+            arm7.exec_irq(0x18)
+        }
+    }
 }
 
 bus_reset :: proc() {
