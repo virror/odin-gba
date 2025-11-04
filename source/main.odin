@@ -327,8 +327,8 @@ load_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) 
         load_btn.disabled = true
         resume_btn.disabled = true
         when !START_BIOS {
-            arm7.init_no_bios()
             arm7.reset(0x08000000)
+            arm7.init_no_bios()
         } else {
             arm7.reset(0x00000000)
         }
