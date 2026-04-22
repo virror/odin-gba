@@ -16,6 +16,13 @@ Ppu_states :: enum {
     VBLANK_HBLANK,
 }
 
+Sprite_mode :: enum {
+    NORMAL,
+    AFFINE,
+    DISABLED,
+    DOUBLE_AFFINE,
+}
+
 cycle_count: u32
 line_count: u16
 current_state: Ppu_states
@@ -478,27 +485,36 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
 
     for k :u32= 0; k < length; k += 1 {
         sprite := sprites[k]
+        hflip: bool
+        vflip: bool
+
+        mode := Sprite_mode((sprite & 0x300) >> 8)
+        switch (mode) {
+        case .NORMAL:
+            hflip = utils_bit_get64(sprite, 28)
+            vflip = utils_bit_get64(sprite, 29)
+            break
+        case .AFFINE:
+            //fmt.println("Aff sprite!")
+            break
+        case .DISABLED:
+            continue
+        case .DOUBLE_AFFINE:
+            //fmt.println("Double affine sprite!")
+            break
+        }
+
         y_coord := i16(sprite & 0xFF)
         if(y_coord > 159) {
             y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
         }
-        rot_scale := utils_bit_get64(sprite, 8)
-        double_size := utils_bit_get64(sprite, 9)
         //mosaic := utils_bit_get64(sprite, 12)
         palette_256 := utils_bit_get64(sprite, 13)
-        if(!rot_scale && double_size) {
-            fmt.println("Disabled sprite!")
-        }
-        if(rot_scale) {
-            fmt.println("Aff sprite!")
-        }
         if(palette_256) {
             fmt.println("256 sprite!")
         }
         x_coord := u32(sprite & 0x1FF0000) >> 16
         x_coord = utils_sign_extend32(x_coord, 9)
-        hflip := utils_bit_get64(sprite, 28)
-        vflip := utils_bit_get64(sprite, 29)
         size := (sprite & 0xC0000000) >> 30
         size |= (sprite & 0xC000) >> 12
         sizeX, sizeY := ppu_get_sprite_size(size)
