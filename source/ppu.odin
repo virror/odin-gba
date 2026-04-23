@@ -479,6 +479,17 @@ ppu_get_sprite_size :: proc(size: u64) -> (u8, u8) {
     return 8, 8
 }
 
+ppu_get_affine_f32 :: proc(param: u32) -> (f32) {
+    fraction := f32((sprite & 0x00FF000000000000) >> 48)
+    integer := f32((sprite & 0x7F00000000000000) >> 56)
+    sign := utils_bit_get64(sprite, 63)
+    if(sign) {
+        return -(integer + (fraction / 256.0))
+    } else {
+        return integer + (fraction / 256.0)
+    }
+}
+
 ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) {
     //win0_on := utils_bit_get16(dispcnt, 13)
     //win1_on := utils_bit_get16(dispcnt, 14)
@@ -488,6 +499,12 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
         hflip: bool
         vflip: bool
 
+        x_coord := u32(sprite & 0x1FF0000) >> 16
+        x_coord = utils_sign_extend32(x_coord, 9)
+        y_coord := i16(sprite & 0xFF)
+        if(y_coord > 159) {
+            y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
+        }
         mode := Sprite_mode((sprite & 0x300) >> 8)
         switch (mode) {
         case .NORMAL:
@@ -495,7 +512,17 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
             vflip = utils_bit_get64(sprite, 29)
             break
         case .AFFINE:
-            //fmt.println("Aff sprite!")
+            aff_idx := 127 - ((sprite & 0x3E000000) >> 25) * 4
+            pa := sprites[aff_idx] >> 48
+            pb := sprites[aff_idx - 1] >> 48
+            pc := sprites[aff_idx - 2] >> 48
+            pd := sprites[aff_idx - 3] >> 48
+            dx := ppu_get_affine_f32(pa)
+            dmx := ppu_get_affine_f32(pb)
+            dy := ppu_get_affine_f32(pc)
+            dmy := ppu_get_affine_f32(pd)
+            /*x2 := pa*(x_coord-x_coord+32) + pb*(y_coord-y0) + x0
+            y2 := pc*(x_coord-x0) + pd*(y_coord-y0) + y0*/
             break
         case .DISABLED:
             continue
@@ -503,18 +530,12 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
             //fmt.println("Double affine sprite!")
             break
         }
-
-        y_coord := i16(sprite & 0xFF)
-        if(y_coord > 159) {
-            y_coord = i16(utils_sign_extend32(u32(y_coord), 8))
-        }
+        
         //mosaic := utils_bit_get64(sprite, 12)
         palette_256 := utils_bit_get64(sprite, 13)
         if(palette_256) {
             fmt.println("256 sprite!")
         }
-        x_coord := u32(sprite & 0x1FF0000) >> 16
-        x_coord = utils_sign_extend32(x_coord, 9)
         size := (sprite & 0xC0000000) >> 30
         size |= (sprite & 0xC000) >> 12
         sizeX, sizeY := ppu_get_sprite_size(size)
