@@ -14,9 +14,13 @@ id_mode: bool
 flash_mode: Flash_mode
 command_id: u32
 
-// TODO:
-// -Test!
-// -128k support
+flash_init :: proc() {
+    flash_bank = 0
+    id_mode = false
+    flash_mode = Flash_mode.READY
+    command_id = 0
+    flash_erase()
+}
 
 flash_write :: proc(addr: u32, value: u8) {
     addr := addr
@@ -24,7 +28,7 @@ flash_write :: proc(addr: u32, value: u8) {
         if(flash_bank == 1) {
             addr |= 0x10000
         }
-        bus_write8(addr, value)
+        mem[addr] = value
         flash_mode = Flash_mode.READY
     } else if(flash_mode == Flash_mode.BANK) {
         flash_bank = value
@@ -83,18 +87,18 @@ flash_read :: proc(addr: u32) -> u8 {
             return 0x13
         }
     }
-    return 0xFF//memory_ptr->read8(addr);
+    return mem[addr]
 }
 
 flash_erase :: proc() {
     for i :u32= 0xE000000; i <= 0xE00FFFF; i += 1 {
-        bus_set8(i, 0xFF)
+        mem[i] = 0xFF
     }
 }
 
 flash_erase_sector :: proc(addr: u32) {
     addr_end := addr + 0xFFF
     for i :u32= addr; i <= addr_end; i += 1{
-        bus_set8(i, 0xFF)
+        mem[i] = 0xFF
     }
 }

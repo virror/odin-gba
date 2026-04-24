@@ -38,7 +38,7 @@ bus_check_irq :: proc() {
 bus_reset :: proc() {
     mem = {}
     ram_write = false
-    save_type = .SRAM
+    save_type = .SRAM // TODO: Detect save type based on BIOS header
     bus_load_bios()
 }
 
@@ -134,7 +134,8 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
         case 0x7000000: //OBJ RAM
             addr &= 0x70003FF
             break
-        case 0xE000000:
+        case 0xE000000,
+             0xF000000:
             addr &= 0xE00FFFF
             switch(save_type) {
             case Save_type.UNDEFINED:
@@ -268,6 +269,9 @@ bus_read16 :: proc(addr: u32) -> u16 {
         addr := addr
         addr &= 0xFFFFFFFE
         value := u16(bus_read8(addr, 2))
+        if(addr > 0xE000000 && addr < 0xFFFFFFF) {
+            return value * 0x0101
+        }
         value |= (u16(bus_read8(addr + 1, 2))) << 8
         return value
     }
@@ -278,6 +282,11 @@ bus_write16 :: proc(addr: u32, value: u16) {
         test_write32(addr, u32(value))
     } else {
         addr := addr
+        if(addr > 0xE000000 && addr < 0xFFFFFFF) {
+            val := u8(value >> ((addr % 2) * 8))
+            bus_write8(addr, val, 2)
+            return
+        }
         addr &= 0xFFFFFFFE
         bus_write8(addr, u8(value & 0x00FF), 2)
         bus_write8(addr + 1, u8((value & 0xFF00) >> 8), 2)
@@ -309,6 +318,9 @@ bus_read32 :: proc(addr: u32) -> u32 {
         addr := addr
         addr &= 0xFFFFFFFC
         value := u32(bus_read8(addr, 4))
+        if(addr > 0xE000000 && addr < 0xFFFFFFF) {
+            return value * 0x01010101
+        }
         value |= (u32(bus_read8(addr + 1, 4)) << 8)
         value |= (u32(bus_read8(addr + 2, 4)) << 16)
         value |= (u32(bus_read8(addr + 3, 4)) << 24)
@@ -321,6 +333,11 @@ bus_write32 :: proc(addr: u32, value: u32) {
         test_write32(addr, value)
     } else {
         addr := addr
+        if(addr > 0xE000000 && addr < 0xFFFFFFF) {
+            val := u8((value >> ((addr % 4) * 8)) & 0xFF)
+            bus_write8(addr, val, 2)
+            return
+        }
         addr &= 0xFFFFFFFC
         bus_write8(addr, u8(value & 0x000000FF))
         bus_write8(addr + 1, u8((value & 0x0000FF00) >> 8), 4)

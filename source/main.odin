@@ -273,6 +273,7 @@ reset_all :: proc() {
     ppu_reset()
     apu_reset()
     bus_reset()
+    flash_init()
     input_init()
 }
 

@@ -479,10 +479,10 @@ ppu_get_sprite_size :: proc(size: u64) -> (u8, u8) {
     return 8, 8
 }
 
-ppu_get_affine_f32 :: proc(param: u32) -> (f32) {
-    fraction := f32((sprite & 0x00FF000000000000) >> 48)
-    integer := f32((sprite & 0x7F00000000000000) >> 56)
-    sign := utils_bit_get64(sprite, 63)
+ppu_get_affine_f32 :: proc(param: u64) -> (f32) {
+    fraction := f32((param & 0x00FF000000000000) >> 48)
+    integer := f32((param & 0x7F00000000000000) >> 56)
+    sign := utils_bit_get64(param, 63)
     if(sign) {
         return -(integer + (fraction / 256.0))
     } else {
@@ -512,7 +512,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
             vflip = utils_bit_get64(sprite, 29)
             break
         case .AFFINE:
-            aff_idx := 127 - ((sprite & 0x3E000000) >> 25) * 4
+            /*aff_idx := 127 - ((sprite & 0x3E000000) >> 25) * 4
             pa := sprites[aff_idx] >> 48
             pb := sprites[aff_idx - 1] >> 48
             pc := sprites[aff_idx - 2] >> 48
@@ -520,7 +520,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
             dx := ppu_get_affine_f32(pa)
             dmx := ppu_get_affine_f32(pb)
             dy := ppu_get_affine_f32(pc)
-            dmy := ppu_get_affine_f32(pd)
+            dmy := ppu_get_affine_f32(pd)*/
             /*x2 := pa*(x_coord-x_coord+32) + pb*(y_coord-y0) + x0
             y2 := pc*(x_coord-x0) + pd*(y_coord-y0) + y0*/
             break
@@ -530,7 +530,7 @@ ppu_draw_sprites :: proc(sprites: [128]u64, length: u32, one_dimensional: bool) 
             //fmt.println("Double affine sprite!")
             break
         }
-        
+
         //mosaic := utils_bit_get64(sprite, 12)
         palette_256 := utils_bit_get64(sprite, 13)
         if(palette_256) {
@@ -610,8 +610,7 @@ ppu_set_pixel :: proc(color: u16, pixel: u32) {
     r := (color & 0x1F) << 10
     g := color & 0x3E0
     b := (color & 0x7C00) >> 10
-    new_color := (r | g | b) | 0x8000
-    screen_buffer[pixel] = new_color
+    screen_buffer[pixel] = (r | g | b) | 0x8000
 }
 
 ppu_get_pixels :: proc() -> []u16 {
