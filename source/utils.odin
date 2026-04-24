@@ -1,5 +1,7 @@
 package main
 
+import "core:strings"
+
 utils_bit_get16 :: proc(value: u16, bit: u8) -> bool {
     return bool((value >> bit) & 1)
 }
@@ -35,4 +37,8 @@ utils_bit_clear32 :: proc(value: u32, bit: u8) -> u32 {
 utils_sign_extend32 :: proc(data: u32, bits: u32) -> u32 {
     m := u32(1) << (bits - 1)
     return (data ~ m) - m
+}
+
+mem_contains_string :: proc(size: int, str: string) -> bool {
+    return strings.contains(string(mem[0x08000000:0x08000000 + size]), str)
 }

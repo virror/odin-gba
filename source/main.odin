@@ -93,7 +93,6 @@ main :: proc() {
     assert(audio_stream != nil, "Failed to create audio device") // TODO: Handle error
 
     bus_init()
-    bus_load_bios()
     tmr_init(&timer0, 0)
     tmr_init(&timer1, 1)
     tmr_init(&timer2, 2)

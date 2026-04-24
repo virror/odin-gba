@@ -6,9 +6,10 @@ import "core:path/filepath"
 import "../../odin-libs/cpu/arm7"
 
  Save_type :: enum {
-    UNDEFINED,
+    EEPROM,
     SRAM,
-    FLASH,
+    FLASH512,
+    FLASH1M,
 }
 
 mem: [0xFFFFFFF]u8
@@ -39,7 +40,7 @@ bus_check_irq :: proc() {
 bus_reset :: proc() {
     mem = {}
     ram_write = false
-    save_type = .SRAM // TODO: Detect save type based on BIOS header
+    save_type = .SRAM
     bus_load_bios()
 }
 
@@ -54,9 +55,21 @@ bus_load_bios :: proc() {
 bus_load_rom :: proc(path: string) {
     file, err := os.open(path, os.O_RDONLY)
     assert(err == nil, "Failed to open rom")
-    _, err2 := os.read(file, mem[0x08000000:])
+    size, err2 := os.read(file, mem[0x08000000:])
     assert(err2 == nil, "Failed to read rom data")
     file_name = filepath.short_stem(path)
+
+    if(mem_contains_string(size, "EEPROM_V")) {
+        save_type = .EEPROM
+    } else if(mem_contains_string(size, "SRAM_V")) {
+        save_type = .SRAM
+    } else if(mem_contains_string(size, "FLASH_V")) {
+        save_type = .FLASH512
+    } else if(mem_contains_string(size, "FLASH512_V")) {
+        save_type = .FLASH512
+    } else if(mem_contains_string(size, "FLASH1M_V")) {
+        save_type = .FLASH1M
+    }
     os.close(file)
 }
 
@@ -88,7 +101,7 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
             }*/
             break
         case 0x2000000: //WRAM
-            addr &= 0x303FFFF
+            addr &= 0x203FFFF
             break
         case 0x3000000: //WRAM
             addr &= 0x3007FFF
@@ -139,12 +152,11 @@ bus_read8 :: proc(addr: u32, width: u8 = 1) -> u8 {
              0xF000000:
             addr &= 0xE00FFFF
             switch(save_type) {
-            case Save_type.UNDEFINED:
-                save_type = Save_type.SRAM
-                break
-            case Save_type.FLASH:
+            case Save_type.FLASH512, Save_type.FLASH1M:
                 return flash_read(addr)
             case Save_type.SRAM:
+                break
+            case Save_type.EEPROM:
                 break
             }
             break
@@ -163,7 +175,7 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
         case 0x0000000: //BIOS
             return //Read only
         case 0x2000000: //WRAM
-            addr &= 0x303FFFF
+            addr &= 0x203FFFF
             break
         case 0x3000000: //WRAM
             addr &= 0x3007FFF
@@ -232,16 +244,12 @@ bus_write8 :: proc(addr: u32, value: u8, width: u8 = 1) {
         case 0xE000000:
             addr &= 0xE00FFFF
             switch(save_type) {
-            case Save_type.UNDEFINED:
-                if(addr == 0xE005555 && value == 0xAA) {
-                    save_type = Save_type.FLASH
-                    flash_write(addr, value)
-                }
-                break
-            case Save_type.FLASH:
+            case Save_type.FLASH512, Save_type.FLASH1M:
                 flash_write(addr, value)
                 return
             case Save_type.SRAM:
+                break
+            case Save_type.EEPROM:
                 break
             }
             ram_write = true
