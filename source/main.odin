@@ -319,6 +319,7 @@ load_callback :: proc "c" (userdata: rawptr, filelist: [^]cstring, filter: i32) 
     if(game_path != "") {
         reset_all()
         bus_load_rom(game_path)
+        bus_load_ram()
         sdl.SetWindowTitle(window, fmt.caprintf("odin-gb - %s", file_name))
         when(DEBUG) {
             pause_emu(true)

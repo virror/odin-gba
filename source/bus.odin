@@ -14,6 +14,7 @@ import "../../odin-libs/cpu/arm7"
 mem: [0xFFFFFFF]u8
 ram_write: bool
 save_type: Save_type = .SRAM
+ram_path: string
 
 bus_init :: proc() {
     arm7.bus_read8 = bus_read8
@@ -353,26 +354,21 @@ bus_irq_set :: proc(bit: u8) {
 
 bus_save_ram :: proc() {
     if(ram_write) {
-        /*//std::filesystem::create_directory("saves")
-        std::ofstream myfile (ram_save_filename, std::ios::binary)
-        if (myfile.is_open()) {
-            for(int i = 0xE000000 i < 0xE00FFFF i++) {
-                myfile << mem[i]
-            }
-            myfile.close()
+        file, err := os.open(ram_path, os.O_WRONLY | os.O_CREATE)
+        if(err == nil) {
+            _, err2 := os.write(file, mem[0xE000000:0xE007FFF])
+            assert(err2 == nil, "Failed to write SRAM data")
+            os.close(file)
         }
-        else {
-            std::cout << "Unable to save RAM"
-        }*/
     }
 }
 
 bus_load_ram :: proc() {
-    /*std::ifstream ram_file (ram_save_filename, std::ios::binary)
-    if (ram_file.is_open()) {
-        for(int i = 0xE000000 i < 0xE00FFFF i++) {
-            ram_file.read((char *)&mem[i], sizeof(uint8_t))
-        }
-        ram_file.close()
-    }*/
+    ram_path = fmt.aprintf("saves/%s.sav" , file_name)
+    file, err := os.open(ram_path, os.O_RDONLY)
+    if(err == nil) {
+        _, err2 := os.read(file, mem[0xE000000:0xE007FFF])
+        assert(err2 == nil, "Failed to read SRAM data")
+        os.close(file)
+    }
 }
